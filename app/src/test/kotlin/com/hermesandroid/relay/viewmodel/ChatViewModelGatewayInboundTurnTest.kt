@@ -2729,6 +2729,121 @@ class ChatViewModelGatewayInboundTurnTest {
         awaitCondition { viewModel.pendingAsk.value == null }
     }
 
+    private fun presentBatchClarify(requestId: String = "batch") {
+        serverWs.send(gatewayHarness.eventFrame("clarify.request",
+            gatewayHarness.json.parseToJsonElement("""{"request_id":"$requestId","questions":[
+                {"qid":"route/a","question":"Which deployment?","choices":["Canary","Immediate"]},
+                {"qid":"environment:b","question":"Which environments?","choices":["Stage","Production"],"multi_select":true}
+            ]}""") as kotlinx.serialization.json.JsonObject, "live-resumed"))
+        awaitCondition { viewModel.pendingAsk.value?.ask?.requestId == requestId }
+    }
+
+    @Test
+    fun batchClarifyInFlightAnswerSurvivesSessionRoundTripWithoutDuplicateRpc() {
+        val contextKey = AgentDisplay.profileContextKey("connection-a", null)
+        val store = MemoryCheckpointStore()
+        viewModel.setChatTurnCheckpointStore(store)
+        viewModel.switchProfileContext(contextKey, STORED_SESSION_ID)
+        viewModel.sendMessage("Ask before continuing")
+        gatewayHarness.awaitRpc("prompt.submit")
+        presentBatchClarify()
+        val pending = requireNotNull(viewModel.pendingAsk.value)
+        val key = com.hermesandroid.relay.data.clarifyQuestionCardKey(pending.cardKey, "route/a")
+        gatewayHarness.suppressAckMethods += "clarify.respond"
+        viewModel.answerAsk(pending.messageId, key, "Canary")
+        shadowOf(Looper.getMainLooper()).idle()
+        val ack = gatewayHarness.awaitPendingAck()
+        viewModel.switchSession("other-session")
+        awaitCondition { handler.currentSessionId.value == "other-session" && store.checkpoint?.pendingAsk != null }
+        gatewayHarness.recoveryRunning = true
+        viewModel.switchSession(STORED_SESSION_ID)
+        awaitCondition { viewModel.pendingAsk.value != null && handler.currentSessionId.value == STORED_SESSION_ID }
+        val restored = requireNotNull(viewModel.pendingAsk.value)
+        assertEquals(pending.ownerId, restored.ownerId)
+        viewModel.answerAsk(restored.messageId, key, "Canary")
+        gatewayHarness.releaseAck(ack)
+        awaitCondition { viewModel.pendingAsk.value?.ask?.answers?.get("route/a") == "Canary" }
+        assertEquals(1, gatewayHarness.rpcLog.count { it.first == "clarify.respond" })
+        gatewayHarness.suppressAckMethods -= "clarify.respond"
+        viewModel.answerAsk(restored.messageId,
+            com.hermesandroid.relay.data.clarifyQuestionCardKey(restored.cardKey, "environment:b"), "[\"Stage\"]")
+        awaitCondition { viewModel.pendingAsk.value == null }
+        serverWs.send(gatewayHarness.eventFrame("message.complete", buildJsonObject { put("text", "All answers received") }, "live-resumed"))
+        awaitCondition { !handler.isStreaming.value && !gatewayClient.hasActiveTurn() }
+        assertEquals(2, gatewayHarness.rpcLog.count { it.first == "clarify.respond" })
+    }
+
+    @Test
+    fun batchClarifyKeepsPartialProgressRejectsDuplicateAndNeverSendsChatAnswers() {
+        viewModel.sendMessage("Ask a batch")
+        gatewayHarness.awaitRpc("prompt.submit")
+        presentBatchClarify()
+        val pending = requireNotNull(viewModel.pendingAsk.value)
+        val key = com.hermesandroid.relay.data.clarifyQuestionCardKey(pending.cardKey, "route/a")
+        gatewayHarness.suppressAckMethods += "clarify.respond"
+        viewModel.answerAsk(pending.messageId, key, "Canary")
+        viewModel.answerAsk(pending.messageId, key, "Canary")
+        shadowOf(Looper.getMainLooper()).idle()
+        val ack = gatewayHarness.awaitPendingAck()
+        assertEquals(1, gatewayHarness.rpcLog.count { it.first == "clarify.respond" })
+        gatewayHarness.releaseAck(ack)
+        awaitCondition { viewModel.pendingAsk.value?.ask?.answers?.get("route/a") == "Canary" }
+        presentBatchClarify()
+        viewModel.answerAsk(pending.messageId, key, "Immediate")
+        assertEquals("Canary", viewModel.pendingAsk.value?.ask?.answers?.get("route/a"))
+        gatewayHarness.suppressAckMethods -= "clarify.respond"
+        val secondKey = com.hermesandroid.relay.data.clarifyQuestionCardKey(pending.cardKey, "environment:b")
+        viewModel.answerAsk(pending.messageId, secondKey, "[\"Stage\",\"Production\"]")
+        awaitCondition { viewModel.pendingAsk.value == null }
+        val responses = gatewayHarness.rpcLog.filter { it.first == "clarify.respond" }.map { it.second }
+        assertEquals(listOf(JsonPrimitive("route/a"), JsonPrimitive("environment:b")), responses.map { it["question_id"] })
+        assertEquals(1, gatewayHarness.rpcLog.count { it.first == "prompt.submit" })
+        val card = handler.messages.value.single { it.id == pending.messageId }.cards.single()
+        assertEquals(listOf("Canary", "[\"Stage\",\"Production\"]"), card.clarifyBatch?.questions?.map { it.answer })
+    }
+
+    @Test
+    fun batchClarifyFailedRpcCanRetryAndWhitespaceCannotSubmit() {
+        viewModel.sendMessage("Ask a batch")
+        gatewayHarness.awaitRpc("prompt.submit")
+        presentBatchClarify()
+        val pending = requireNotNull(viewModel.pendingAsk.value)
+        val key = com.hermesandroid.relay.data.clarifyQuestionCardKey(pending.cardKey, "route/a")
+        viewModel.answerAsk(pending.messageId, key, "   ")
+        assertTrue(gatewayHarness.rpcLog.none { it.first == "clarify.respond" })
+        gatewayHarness.rpcErrors["clarify.respond"] = 5030 to "Try again"
+        viewModel.answerAsk(pending.messageId, key, "Canary")
+        awaitCondition { gatewayHarness.rpcLog.any { it.first == "clarify.respond" } &&
+            handler.messages.value.single { it.id == pending.messageId }.cards.single().clarifyBatch?.questions?.first()?.submitting == false }
+        assertTrue(requireNotNull(viewModel.pendingAsk.value).ask.answers.isEmpty())
+        gatewayHarness.rpcErrors.remove("clarify.respond")
+        viewModel.answerAsk(pending.messageId, key, "  custom route  ")
+        awaitCondition { viewModel.pendingAsk.value?.ask?.answers?.get("route/a") == "custom route" }
+        assertEquals(2, gatewayHarness.rpcLog.count { it.first == "clarify.respond" })
+    }
+
+    @Test
+    fun staleExpiredBatchResponseCannotRetireReusedRequestId() {
+        viewModel.sendMessage("Ask a batch")
+        gatewayHarness.awaitRpc("prompt.submit")
+        presentBatchClarify()
+        val pending = requireNotNull(viewModel.pendingAsk.value)
+        gatewayHarness.suppressAckMethods += "clarify.respond"
+        viewModel.answerAsk(pending.messageId, com.hermesandroid.relay.data.clarifyQuestionCardKey(pending.cardKey, "route/a"), "Canary")
+        shadowOf(Looper.getMainLooper()).idle()
+        val ack = gatewayHarness.awaitPendingAck()
+        serverWs.send(gatewayHarness.eventFrame("clarify.expire", buildJsonObject { put("request_id", "batch") }, "live-resumed"))
+        awaitCondition { viewModel.pendingAsk.value == null }
+        presentBatchClarify()
+        val newOwner = requireNotNull(viewModel.pendingAsk.value).ownerId
+        gatewayHarness.releaseAck(ack, buildJsonObject { put("status", "expired") })
+        gatewayHarness.suppressAckMethods -= "clarify.respond"
+        val current = requireNotNull(viewModel.pendingAsk.value)
+        viewModel.answerAsk(current.messageId, com.hermesandroid.relay.data.clarifyQuestionCardKey(current.cardKey, "route/a"), "Immediate")
+        awaitCondition { viewModel.pendingAsk.value?.ask?.answers?.get("route/a") == "Immediate" }
+        assertEquals(newOwner, viewModel.pendingAsk.value?.ownerId)
+    }
+
     @Test
     fun authoritativeClarifyExpiryCollapsesCardAndRejectsLateAction() {
         viewModel.sendMessage("Ask a question")

@@ -74,6 +74,8 @@ class GatewayClientHarness(
 
     @Volatile
     var recoveryRunning = false
+    @Volatile
+    var recoveryClarify: JsonObject? = null
 
     @Volatile
     var recoveryAssistant = ""
@@ -586,6 +588,7 @@ class GatewayClientHarness(
     private val autoRespondEnabled = autoRespond
 
     private fun recoveryPayload(sessionId: String, requestedProfile: String? = null): JsonObject = buildJsonObject {
+        recoveryClarify?.let { put("pending_clarify", it) }
         put("session_id", sessionId)
         put("running", recoveryRunning)
         put("status", if (recoveryRunning) "streaming" else "idle")
@@ -3164,6 +3167,75 @@ class GatewayChatClientTest {
     }
 
     // --- Ask responders ---
+
+    @Test
+    fun `batch clarify reconnect adopts server answered qids without resubmitting`() {
+        val r = Recorder()
+        client.sendTurn(null, "hi", null, r.callbacks) { r.preflightFailures += it }
+        val socket = harness.awaitServerSocket()
+        harness.awaitRpc("prompt.submit")
+        harness.recoveryRunning = true
+        harness.recoveryClarify = harness.json.parseToJsonElement("""{
+            "request_id":"batch","questions":[{"qid":"q0","question":"First?"},{"qid":"q1","question":"Second?"}],
+            "answers":{"q0":"accepted before disconnect"}}
+        """) as JsonObject
+        socket.close(1001, "fixture reconnect")
+        val replacement = harness.awaitServerSocket()
+        harness.awaitRpc("session.activate")
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (r.interactions.isEmpty() && System.nanoTime() < deadline) Thread.sleep(10)
+        assertEquals(mapOf("q0" to "accepted before disconnect"), r.interactions.last().answers)
+        assertTrue(harness.rpcLog.none { it.first == "clarify.respond" })
+        assertTrue(runBlocking { client.respondClarify("batch", "second", "q1") }.isSuccess)
+        replacement.send(harness.eventFrame("message.complete", buildJsonObject { put("text", "done") }, "live-1"))
+        assertTrue(r.completeLatch.await(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun `batch clarify responds with exact question id and JSON array answer`() {
+        val r = Recorder()
+        client.sendTurn(null, "hi", null, r.callbacks) { r.preflightFailures += it }
+        val socket = harness.awaitServerSocket()
+        harness.awaitRpc("prompt.submit")
+        socket.send(harness.eventFrame("clarify.request", harness.json.parseToJsonElement("""
+            {"request_id":"batch","questions":[{"qid":"env:b","question":"Which environments?","choices":["Stage","Production"],"multi_select":true}]}
+        """) as JsonObject, "live-1"))
+        awaitCondition { r.interactions.isNotEmpty() }
+        val answer = "[\"Stage\",\"Production\"]"
+        assertTrue(runBlocking { client.respondClarify("batch", answer, "env:b") }.isSuccess)
+        val respond = harness.awaitRpc("clarify.respond")
+        assertEquals("batch", (respond["request_id"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals("env:b", (respond["question_id"] as? JsonPrimitive)?.contentOrNull)
+        assertEquals(answer, (respond["answer"] as? JsonPrimitive)?.contentOrNull)
+    }
+
+    @Test
+    fun `batch answer waits for reconnect replay and refuses an already answered qid`() {
+        val r = Recorder()
+        client.sendTurn(null, "hi", null, r.callbacks) { r.preflightFailures += it }
+        val socket = harness.awaitServerSocket()
+        harness.awaitRpc("prompt.submit")
+        val request = harness.json.parseToJsonElement("""{"request_id":"batch","questions":[
+            {"qid":"q0","question":"First?"},{"qid":"q1","question":"Second?"}]}""") as JsonObject
+        socket.send(harness.eventFrame("clarify.request", request, "live-1"))
+        awaitCondition { r.interactions.isNotEmpty() }
+        harness.recoveryRunning = true
+        harness.suppressAckMethods += "session.activate"
+        socket.close(1001, "fixture lost acknowledgement")
+        harness.awaitServerSocket()
+        val activation = harness.awaitPendingAck()
+        assertEquals("session.activate", activation.method)
+        assertTrue(runBlocking { client.respondClarify("batch", "retry", "q0") }.isFailure)
+        assertTrue(harness.rpcLog.none { it.first == "clarify.respond" })
+        harness.releaseAck(activation, buildJsonObject {
+            put("session_id", "live-1")
+            put("running", true)
+            put("pending_clarify", JsonObject(request + ("answers" to buildJsonObject { put("q0", "accepted") })))
+        })
+        awaitCondition { r.interactions.last().answers["q0"] == "accepted" }
+        assertTrue(runBlocking { client.respondClarify("batch", "overwrite", "q0") }.isFailure)
+        assertTrue(harness.rpcLog.none { it.first == "clarify.respond" })
+    }
 
     @Test
     fun `clarify respond carries request id and answer`() {

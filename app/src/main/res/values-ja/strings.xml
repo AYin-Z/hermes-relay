@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="clarify_batch_progress">質問 %1$d / %2$d</string>
+    <string name="clarify_batch_complete">すべての質問に回答しました</string>
+    <string name="clarify_batch_expired">このリクエストは終了しました</string>
+    <string name="clarify_batch_sending">回答を送信中…</string>
+    <string name="clarify_batch_answered">回答済みの質問（%1$d）</string>
     <string name="app_name">Hermes-Relay</string>
     <string name="app_title">Hermes-Relay</string>
     <string name="agent_interface">エージェントインターフェース</string>

@@ -47,7 +47,7 @@ distribution, and trust installation are deliberately outside this fixture.
 - `POST /api/auth/ws-ticket` mints a fresh, single-use 30-second ticket.
 - `GET /api/ws?ticket=...` upgrades to WebSocket and sends `gateway.ready`.
 - JSON-RPC methods: `session.create`, `session.resume`, `session.activate`,
-  `session.active_list`, `prompt.submit`, and `session.interrupt` when the
+  `session.active_list`, `prompt.submit`, `clarify.respond`, and `session.interrupt` when the
   selected scenario enables them.
 - `GET /api/sessions/{stored-id}/messages` returns persisted, paginated history
   and accepts the upstream `profile`, `limit`, `offset`, and `order` query shape.
@@ -66,6 +66,7 @@ ordered `steps` list using these operations:
 | Operation | Purpose |
 |---|---|
 | `event` | Send a Gateway event with `exact`, `foreign`, or `unscoped` identity. |
+| `clarify` | Emit the supplied Clarify `payload` and wait for its legacy answer or every batch qid; activation replays confirmed answers. |
 | `persist` | Append authoritative Dashboard history rows. |
 | `sleep` | Create a bounded deterministic ordering window (maximum 5 seconds). |
 | `set_running` | Change the authoritative session running state. |

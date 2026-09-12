@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Android answers upstream Clarify batches one question at a time, with independent choices, custom answers, and confirmed progress preserved across reconnects. (#474)
 - Android shows Hermes profile display names and groups the resolved server default under its agent identity, while preserving explicit profile selection and saved conversations.
 
 ## [Android 1.16.1] - 2026-09-12

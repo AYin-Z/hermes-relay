@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.hermesandroid.relay.network.upstream.GatewayClarifyQuestion
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -135,6 +136,9 @@ data class ChatTurnAskCheckpoint(
     val text: String,
     val choices: List<String>? = null,
     val multiSelect: Boolean = false,
+    val questions: List<GatewayClarifyQuestion> = emptyList(),
+    val answers: Map<String, String> = emptyMap(),
+    val ownerId: String? = null,
     val smartDenied: Boolean = false,
     val envVar: String? = null,
     val timeoutSeconds: Int,

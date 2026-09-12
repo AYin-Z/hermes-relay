@@ -71,6 +71,8 @@ data class HermesCard(
      * actions.
      */
     val input: HermesCardInput? = null,
+    /** Local Gateway batch; never an ordinary chat-message answer protocol. */
+    val clarifyBatch: HermesCardClarifyBatch? = null,
 ) {
     object BuiltInTypes {
         const val SKILL_RESULT = "skill_result"
@@ -95,6 +97,25 @@ data class HermesCard(
         const val DANGER = "danger"
     }
 }
+
+@Serializable
+data class HermesCardClarifyBatch(
+    val questions: List<HermesCardClarifyQuestion>,
+    val expiresAtMillis: Long? = null,
+)
+
+@Serializable
+data class HermesCardClarifyQuestion(
+    val key: String,
+    val question: String,
+    val input: HermesCardInput,
+    val answer: String? = null,
+    val submitting: Boolean = false,
+)
+
+/** Local callback identity. The RPC always uses the original qid, never this UI key. */
+fun clarifyQuestionCardKey(cardKey: String, qid: String): String =
+    Json.encodeToString(listOf(cardKey, qid))
 
 /**
  * Interactive input slot on a [HermesCard]. The flags compose rather than

@@ -32,19 +32,66 @@ class GatewayEventMapper(
     var turnEnded: Boolean = false
         private set
 
+    @get:Synchronized
     internal val currentInteraction: GatewayAsk?
         get() = pendingInteraction
+    @Volatile internal var interactionGeneration: Long = 0
+        private set
 
-    internal fun restoreInteraction(ask: GatewayAsk) {
-        val duplicate = pendingInteraction?.sameRequestAs(ask) == true
-        pendingInteraction = ask
-        if (!duplicate) callbacks.onInteractionRequest(ask)
+    @Synchronized internal fun restoreInteraction(ask: GatewayAsk) {
+        val previous = pendingInteraction
+        val duplicate = previous?.sameRequestAs(ask) == true
+        if (!duplicate) interactionGeneration++
+        val merged = if (duplicate && ask.questions.isNotEmpty()) {
+            ask.withAnswers(previous.answers + ask.answers, previous)
+        } else if (ask.questions.isNotEmpty()) ask.withAnswers(emptyMap()) else ask
+        if (merged.ownershipToken.retired.get() && !merged.clarifyComplete) {
+            if (duplicate) pendingInteraction = null
+            callbacks.onInteractionExpired(GatewayAskExpiry(merged.kind, merged.requestId))
+            if (pendingInteraction == null) drainDeferredTerminalEvent()
+            return
+        }
+        pendingInteraction = merged
+        if (!duplicate || previous != merged) callbacks.onInteractionRequest(merged)
+        if (merged.clarifyComplete) {
+            pendingInteraction = null
+            drainDeferredTerminalEvent()
+        }
+    }
+
+    @Synchronized internal fun acknowledgeClarify(
+        requestId: String,
+        questionId: String?,
+        answer: String,
+        expired: Boolean,
+        generation: Long = interactionGeneration,
+    ) {
+        if (generation != interactionGeneration) return
+        val pending = pendingInteraction ?: return
+        if (pending.kind != GatewayAsk.Kind.CLARIFY || pending.requestId != requestId) return
+        if (!expired && questionId != null && pending.questions.none { it.qid == questionId }) return
+        if (!expired && questionId != null && pending.questions.any { it.qid == questionId }) {
+            val updated = pending.withAnswers(pending.answers + (questionId to answer))
+            if (updated.questions.any { it.qid !in updated.answers }) {
+                pendingInteraction = updated
+                return
+            }
+        }
+        acknowledgeInteraction(GatewayAskExpiry(GatewayAsk.Kind.CLARIFY, requestId))
+    }
+
+    @Synchronized internal fun acknowledgeClarifyOwner(
+        requestId: String, questionId: String?, answer: String, expired: Boolean, owner: GatewayAskOwnership,
+    ) {
+        if (pendingInteraction?.ownershipToken !== owner) return
+        acknowledgeClarify(requestId, questionId, answer, expired)
     }
 
     /** Retire only the ask whose explicit respond RPC reached server truth. */
-    internal fun acknowledgeInteraction(expiry: GatewayAskExpiry) {
+    @Synchronized internal fun acknowledgeInteraction(expiry: GatewayAskExpiry) {
         val pending = pendingInteraction ?: return
         if (pending.matches(expiry)) {
+            pending.ownershipToken.retired.set(true)
             pendingInteraction = null
             drainDeferredTerminalEvent()
         }
@@ -77,7 +124,7 @@ class GatewayEventMapper(
      */
     private val generatingIdsByName = mutableMapOf<String, ArrayDeque<String>>()
 
-    fun onEvent(type: String, payload: JsonObject?) {
+    @Synchronized fun onEvent(type: String, payload: JsonObject?) {
         if (turnEnded) return
 
         interactionRequest(type, payload)?.let { ask ->
@@ -88,6 +135,7 @@ class GatewayEventMapper(
         interactionExpiry(type, payload)?.let { expiry ->
             val pending = pendingInteraction
             if (pending != null && pending.matches(expiry)) {
+                pending.ownershipToken.retired.set(true)
                 pendingInteraction = null
             }
             callbacks.onInteractionExpired(expiry)
@@ -503,26 +551,7 @@ class GatewayEventMapper(
         }
 
         fun interactionRequest(type: String, payload: JsonObject?): GatewayAsk? = when (type) {
-            "clarify.request" -> {
-                val choices = (payload?.get("choices") as? JsonArray)
-                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
-                    ?.filter { it.isNotEmpty() }
-                    ?.distinct()
-                    ?.take(MAX_CLARIFY_CHOICES)
-                    ?.takeIf { it.isNotEmpty() }
-                GatewayAsk(
-                    kind = GatewayAsk.Kind.CLARIFY,
-                    requestId = payload.string("request_id"),
-                    text = payload.string("question") ?: "The agent needs clarification",
-                    choices = choices,
-                    multiSelect = payload.boolean("multi_select") == true && choices != null,
-                    // Current upstream owns expiry through clarify.expire and
-                    // does not advertise its configurable deadline. Never
-                    // invent a local deadline; consume future additive
-                    // metadata only when it is present and positive.
-                    timeoutSeconds = payload.int("timeout_seconds")?.coerceAtLeast(0) ?: 0,
-                )
-            }
+            "clarify.request" -> clarifyRequest(payload)
 
             "approval.request" -> GatewayAsk(
                 kind = GatewayAsk.Kind.APPROVAL,
@@ -553,6 +582,41 @@ class GatewayEventMapper(
             )
 
             else -> null
+        }
+
+        private fun clarifyRequest(payload: JsonObject?): GatewayAsk? {
+            val rawQuestions = payload?.get("questions")
+            if (rawQuestions != null && rawQuestions !is JsonArray) return null
+            val questions = rawQuestions?.map { value ->
+                val row = value as? JsonObject ?: return null
+                val qid = (row["qid"] as? JsonPrimitive)?.takeIf { it.isString }
+                    ?.contentOrNull?.takeIf(String::isNotBlank) ?: return null
+                val text = row.string("question")?.takeIf(String::isNotBlank) ?: return null
+                val choices = (row["choices"] as? JsonArray)?.mapNotNull {
+                    (it as? JsonPrimitive)?.takeIf { option -> option.isString }
+                        ?.contentOrNull?.takeIf(String::isNotBlank)
+                }.orEmpty().take(MAX_CLARIFY_CHOICES)
+                GatewayClarifyQuestion(qid, text, choices, row.boolean("multi_select") == true && choices.isNotEmpty())
+            }.orEmpty()
+            if (questions.size > MAX_CLARIFY_QUESTIONS || questions.map { it.qid }.distinct().size != questions.size) return null
+            val choices = (payload?.get("choices") as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim() }
+                ?.filter(String::isNotEmpty)?.distinct()?.take(MAX_CLARIFY_CHOICES)
+                ?.takeIf { it.isNotEmpty() }
+            return GatewayAsk(
+                kind = GatewayAsk.Kind.CLARIFY,
+                requestId = payload.string("request_id"),
+                text = payload.string("question") ?: "The agent needs clarification",
+                choices = choices,
+                multiSelect = payload.boolean("multi_select") == true && choices != null,
+                // Upstream owns its configurable deadline; only consume advertised metadata.
+                timeoutSeconds = payload.int("timeout_seconds")?.coerceAtLeast(0) ?: 0,
+                questions = questions,
+                answers = (payload?.get("answers") as? JsonObject)?.mapNotNull { (qid, value) ->
+                    (value as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+                        ?.takeIf { questions.any { q -> q.qid == qid } }?.let { qid to it }
+                }?.toMap().orEmpty(),
+            )
         }
 
         fun interactionExpiry(type: String, payload: JsonObject?): GatewayAskExpiry? = when (type) {
@@ -634,6 +698,7 @@ class GatewayEventMapper(
 // Upstream clarify tool accepts at most four choices. Sudo/secret retain fixed
 // `_block()` timeouts; clarify is configurable and expires authoritatively.
 private const val MAX_CLARIFY_CHOICES = 4
+private const val MAX_CLARIFY_QUESTIONS = 5
 private const val SUDO_TIMEOUT_SECONDS = 120
 private const val SECRET_TIMEOUT_SECONDS = 300
 

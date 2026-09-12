@@ -2,11 +2,14 @@ package com.hermesandroid.relay.network.upstream
 
 import com.hermesandroid.relay.network.upstream.models.MessageItem
 import com.hermesandroid.relay.network.upstream.models.UsageInfo
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Shared types for the Gateway chat transport — upstream hermes-agent's
@@ -230,9 +233,34 @@ data class GatewayAsk(
      * authoritative `*.expire` event still retires the interaction.
      */
     val timeoutSeconds: Int,
+    val questions: List<GatewayClarifyQuestion> = emptyList(),
+    val answers: Map<String, String> = emptyMap(),
 ) {
     enum class Kind { CLARIFY, APPROVAL, SUDO, SECRET }
+    val clarifyComplete: Boolean get() = questions.isNotEmpty() && questions.all { it.qid in answers }
+
+    /** In-memory request incarnation shared when a live ask moves between turn mappers. */
+    internal var ownershipToken = GatewayAskOwnership(answers)
+        private set
+
+    internal fun withAnswers(answers: Map<String, String>, owner: GatewayAsk = this): GatewayAsk =
+        copy(answers = owner.ownershipToken.answers.updateAndGet { it + answers })
+            .also { it.ownershipToken = owner.ownershipToken }
 }
+
+/** A detached/reclaimed mapper shares confirmed progress with an RPC still owned by its predecessor. */
+internal class GatewayAskOwnership(answers: Map<String, String>) {
+    val answers = AtomicReference(answers.toMap())
+    val retired = AtomicBoolean(false)
+}
+
+@Serializable
+data class GatewayClarifyQuestion(
+    val qid: String,
+    val question: String,
+    val choices: List<String> = emptyList(),
+    val multiSelect: Boolean = false,
+)
 
 /**
  * Server-side expiry of one blocking gateway interaction. Sudo/secret asks

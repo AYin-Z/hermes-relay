@@ -57,6 +57,21 @@ class ChatTurnCheckpointStoreTest {
     }
 
     @Test
+    fun partialClarifyBatch_roundTripsWithExactQuestionOwnership() = runTest {
+        val checkpoint = sampleCheckpoint().copy(pendingAsk = ChatTurnAskCheckpoint(
+            kind = "CLARIFY", requestId = "batch", text = "", timeoutSeconds = 0,
+            messageId = "ask-batch", cardKey = "batch", receivedAt = now,
+            questions = listOf(
+                com.hermesandroid.relay.network.upstream.GatewayClarifyQuestion("route/a", "Which route?", listOf("Canary")),
+                com.hermesandroid.relay.network.upstream.GatewayClarifyQuestion("environment:b", "Which environments?", listOf("Stage", "Production"), true),
+            ), answers = mapOf("route/a" to "Canary"),
+        ))
+        store.write(checkpoint)
+        assertEquals(checkpoint, store.read())
+        assertEquals(mapOf("route/a" to "Canary"), store.read()?.pendingAsk?.answers)
+    }
+
+    @Test
     fun corruptJson_isDiscarded() = runTest {
         dataStore.edit { preferences ->
             preferences[stringPreferencesKey("chat_inflight_turn_checkpoint_v1")] = "{broken"
