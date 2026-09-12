@@ -57,6 +57,22 @@ The same scripts generate and verify smaller WebP derivatives used by the
 responsive `srcset` declarations. The full-resolution PNG files remain the
 canonical fallback; do not hand-edit the WebP variants.
 
+Desktop UI screenshots are captured from the production React surface with fixed
+public fixtures. From the repository root, refresh them with:
+
+```bash
+node desktop/tray/scripts/capture-desktop-ui.mjs
+node website/scripts/desktop-ui-assets.mjs sync
+```
+
+The capture command updates `docs/media/desktop-ui-screenshots.json` only after
+the scenes succeed. Its fingerprint includes UI sources, fixtures and dependency
+versions/integrity. The tray lockfile's two root-package `version` fields are
+excluded because the fixture pins its display versions; a release-only version
+bump does not invalidate the images. Changes to fixture versions still invalidate
+the fingerprint. `npm run assets:check` tests this distinction before checking
+the canonical images and website derivatives.
+
 ## Coolify
 
 Deploy the website and VitePress guide with their repository-owned Dockerfile.
