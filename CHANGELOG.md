@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Android context previews mark phone status and turn context as unavailable in Gateway chats instead of claiming they are sent. Settings clarify that automatic phone-status sharing applies to API-only chats. (#556)
 - Relay Dashboard WebSockets work with current Hermes authentication helpers while preserving older-host compatibility, single-use tickets, Host/Origin/IP checks, and Relay session authentication.
 - Android shows Hermes profile display names and groups the resolved server default under its agent identity, while preserving explicit profile selection and saved conversations.
 

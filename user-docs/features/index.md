@@ -121,7 +121,7 @@ Google Play builds do not include AccessibilityService-backed screen reading or 
 | Chat empty state | Logo + suggestion chips |
 | Animated streaming dots | Pulsing 3-dot indicator during streaming |
 | Haptic feedback | On send, copy, stream complete, error |
-| App context prompt | Toggleable system message for mobile context |
+| App context prompt | Opt-in phone details and mobile context for API-only chats; Gateway limitations shown in the context preview |
 
 ## Security
 
