@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Optional voice controls over other apps in Google Play, with contextual permission setup, a persistent Stop voice notification, and session shutdown on screen lock or permission loss. Phone control remains sideload-only.
+
 ### Fixed
 
 - Android answers upstream Clarify batches one question at a time, with independent choices, custom answers, and confirmed progress preserved across reconnects. (#474)
