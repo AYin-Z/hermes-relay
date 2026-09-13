@@ -573,6 +573,19 @@ def _supergrok_windows(config: dict[str, Any]) -> list[dict[str, Any]]:
                 "detail": None,
             }
         )
+    elif reset_at:
+        # A period with no recorded usage yet omits the figure entirely rather
+        # than reporting zero. The window is real, so surface it without
+        # inventing a percentage for it.
+        windows.append(
+            {
+                "id": "period",
+                "label": _supergrok_period_label(period.get("type")),
+                "used_percent": None,
+                "reset_at": reset_at,
+                "detail": "No usage reported yet",
+            }
+        )
 
     products = config.get("productUsage")
     if isinstance(products, list):

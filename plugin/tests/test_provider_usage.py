@@ -251,6 +251,54 @@ class ProviderUsageModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(session.calls), 1)
         self.assertNotIn("secret", str(result))
 
+    async def test_supergrok_fresh_period_surfaces_window_without_inventing_a_percent(self) -> None:
+        session = _SequencedSession(
+            [
+                _FakeResponse(payload={"userId": "user-1"}),
+                _FakeResponse(
+                    payload={
+                        "config": {
+                            "currentPeriod": {
+                                "type": "USAGE_PERIOD_TYPE_WEEKLY",
+                                "start": "2026-09-13T08:34:12.348291+00:00",
+                                "end": "2026-09-20T08:34:12.348291+00:00",
+                            },
+                            "billingPeriodEnd": "2026-09-20T08:34:12.348291+00:00",
+                        }
+                    }
+                ),
+            ]
+        )
+
+        result = await fetch_supergrok_usage(
+            session_factory=lambda: session,
+            credential_resolver=lambda: {"api_key": "secret"},
+        )
+
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(len(result["windows"]), 1)
+        self.assertEqual(result["windows"][0]["label"], "Weekly")
+        self.assertIsNone(result["windows"][0]["used_percent"])
+        self.assertEqual(result["windows"][0]["reset_at"], "2026-09-20T08:34:12.348291+00:00")
+        self.assertEqual(result["windows"][0]["detail"], "No usage reported yet")
+
+    async def test_supergrok_unusable_payload_is_unavailable(self) -> None:
+        session = _SequencedSession(
+            [
+                _FakeResponse(payload={"userId": "user-1"}),
+                _FakeResponse(payload={"config": {"isUnifiedBillingUser": True}}),
+            ]
+        )
+
+        result = await fetch_supergrok_usage(
+            session_factory=lambda: session,
+            credential_resolver=lambda: {"api_key": "secret"},
+        )
+
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["windows"], [])
+        self.assertEqual(result["message"], "Provider returned no usage windows")
+
     async def test_collection_keeps_provider_order_and_schema(self) -> None:
         async def codex(_home, **_kwargs):
             return unavailable_provider("openai-codex", "Codex")
