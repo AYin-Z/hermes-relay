@@ -22,13 +22,24 @@ export const desktopUiScreenshotSourceFiles = Object.freeze([
 
 const binaryExtensions = new Set(['.png'])
 
+function normalizedSource(relativePath, bytes) {
+  if (binaryExtensions.has(extname(relativePath))) return bytes
+  const text = bytes.toString('utf8').replace(/\r\n?/g, '\n')
+  if (relativePath !== 'desktop/tray/package-lock.json') return Buffer.from(text, 'utf8')
+
+  // The screenshot fixture has fixed display versions. A release-only bump of
+  // the root package does not change it; dependency versions still affect rendering.
+  const lockfile = JSON.parse(text)
+  delete lockfile.version
+  if (lockfile.packages?.['']) delete lockfile.packages[''].version
+  return Buffer.from(JSON.stringify(lockfile), 'utf8')
+}
+
 export async function computeDesktopUiSourceFingerprint(repositoryRoot = defaultRepositoryRoot) {
   const hash = createHash('sha256')
   for (const relativePath of desktopUiScreenshotSourceFiles) {
     const bytes = await readFile(resolve(repositoryRoot, relativePath))
-    const normalized = binaryExtensions.has(extname(relativePath))
-      ? bytes
-      : Buffer.from(bytes.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8')
+    const normalized = normalizedSource(relativePath, bytes)
     hash.update(relativePath)
     hash.update('\0')
     hash.update(normalized)
@@ -36,7 +47,7 @@ export async function computeDesktopUiSourceFingerprint(repositoryRoot = default
   }
   return {
     algorithm: 'sha256',
-    normalization: 'text-lf-v1',
+    normalization: 'text-lf-lockfile-root-version-v2',
     digest: hash.digest('hex'),
     files: [...desktopUiScreenshotSourceFiles]
   }
