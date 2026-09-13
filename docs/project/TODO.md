@@ -58,6 +58,33 @@ standard upstream media/file delivery, and concise-response expectations. Once
 that contract is available in the supported Hermes baseline, adopt it and add
 Gateway conformance coverage proving the exact prompt bytes and session source.
 
+Issues [#556](https://github.com/Codename-11/hermes-relay/issues/556) and
+[#557](https://github.com/Codename-11/hermes-relay/issues/557) share this contract
+gap. The Android audit fix labels unsupported context; automatic Android
+identification and Gateway phone-status delivery still require upstream work.
+Rechecked against upstream `5dea46d13deec9549bdc2ea703ae9201d733c28d`:
+
+- [`methods_prompt.py`](https://github.com/NousResearch/hermes-agent/blob/5dea46d13deec9549bdc2ea703ae9201d733c28d/tui_gateway/methods_prompt.py)
+  accepts `surface` only for `hud` and `voice-live`; it has no general
+  per-turn system-context parameter. Neither surface means Android.
+- [`session_notifications.py`](https://github.com/NousResearch/hermes-agent/blob/5dea46d13deec9549bdc2ea703ae9201d733c28d/tui_gateway/session_notifications.py)
+  adds those built-in surface notes to model input without changing the
+  persisted user row. This is the existing upstream seam to extend, with
+  explicit client capability negotiation, bounded opted-in context, and
+  turn-owned snapshots through queueing, retries, and client switches.
+- [`server.py`](https://github.com/NousResearch/hermes-agent/blob/5dea46d13deec9549bdc2ea703ae9201d733c28d/tui_gateway/server.py)
+  accepts a caller-supplied session `source`, but
+  [`prompt_builder.py`](https://github.com/NousResearch/hermes-agent/blob/5dea46d13deec9549bdc2ea703ae9201d733c28d/agent/prompt_builder.py)
+  has no Android platform hint. A session-origin label is not verified
+  current-turn sender identity. Do not invent a platform or use a client hint
+  as authorization for phone tools.
+- The API server's `POST /api/sessions` source field belongs to the explicit
+  API-only surface. Android standard chat creates/resumes sessions through
+  Gateway RPC; that REST field does not add per-turn context to `prompt.submit`.
+
+Keep unknown/older hosts supported without sending private parameters,
+rewriting the user transcript, overriding persona, or requiring Relay.
+
 ---
 
 ## Scope sensitive-media prompt guidance to capable clients

@@ -89,7 +89,7 @@ Available in **Settings > Chat**.
 |---------|---------|-------------|
 | Show reasoning | `true` | Display thinking/reasoning blocks above responses |
 | Show token usage | `true` | Display input/output token counts and estimated cost |
-| App context prompt | `true` | Send system message telling agent user is on mobile |
+| Share phone status with agent | `true` | Include mobile context in API-only chats; not sent in standard Gateway chats |
 | Tool call display | `Detailed` | How tool calls appear: Off, Compact, or Detailed |
 | Personality | Server default | Active personality from `config.agent.personalities` via `GET /api/config` |
 

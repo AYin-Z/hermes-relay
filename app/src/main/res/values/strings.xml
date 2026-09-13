@@ -882,7 +882,7 @@
     <string name="chat_settings_notify_when_finishes">Background chat alerts</string>
     <string name="chat_settings_notify_when_finishes_desc">Notify when Hermes needs input or finishes while the app is in the background</string>
     <string name="chat_settings_share_phone_status">Share phone status with agent</string>
-    <string name="chat_settings_share_phone_status_desc">Include a short system message about the app and phone on every chat turn</string>
+    <string name="chat_settings_share_phone_status_desc">Include app and phone context in API-only chats. Not sent in standard Gateway chats.</string>
     <string name="chat_settings_bridge_permissions">Bridge + permissions</string>
     <string name="chat_settings_bridge_permissions_desc">Whether accessibility, screen capture, overlay, notifications are granted</string>
     <string name="chat_settings_foreground_app">Foreground app</string>
@@ -891,7 +891,7 @@
     <string name="chat_settings_battery_level_desc">Current battery percent. Off by default.</string>
     <string name="chat_settings_safety_rails">Safety rails</string>
     <string name="chat_settings_safety_rails_desc">Blocklist count, destructive-verb count, and auto-disable timer</string>
-    <string name="chat_settings_preview">Preview</string>
+    <string name="chat_settings_preview">Example for API-only chat</string>
     <string name="chat_settings_no_system_message">(no system message will be sent)</string>
     <string name="chat_settings_parse_tool_annotations">Parse tool annotations</string>
     <string name="chat_settings_experimental">Experimental</string>
@@ -3764,10 +3764,10 @@
     <string name="injected_context_phone_status_title">Phone status</string>
     <string name="injected_context_relay_not_set">No relay configured</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">Context sent with next message</string>
+    <string name="injected_context_subtitle">Preview for this chat. Server-side context is configured separately.</string>
     <string name="injected_context_title">Injected context</string>
     <string name="injected_context_turn_not_set">Not set</string>
-    <string name="injected_context_turn_title">Turn detection mode</string>
+    <string name="injected_context_turn_title">Turn context</string>
     <string name="model_picker_cd_clear">Clear</string>
     <string name="model_picker_count">%d models</string>
     <string name="power_feature_back_desc">Back</string>
@@ -4662,4 +4662,5 @@
     <string name="voice_overlay_setup_start">Start voice overlay</string>
     <string name="voice_overlay_settings_hint">Optional in both builds. Open Voice Focus in Chat and choose Overlay to start. Permissions alone never start listening.</string>
     <string name="voice_overlay_reset_position">Reset position</string>
+    <string name="injected_context_gateway_unsupported">Not sent in Gateway chat. This connection does not support extra per-turn context.</string>
 </resources>

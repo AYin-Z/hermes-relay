@@ -796,7 +796,7 @@
     <string name="chat_settings_notify_when_finishes">バックグラウンドのチャット通知</string>
     <string name="chat_settings_notify_when_finishes_desc">バックグラウンドで Hermes が入力を必要としたとき、または完了したときに通知します</string>
     <string name="chat_settings_share_phone_status">電話のステータスをエージェントと共有する</string>
-    <string name="chat_settings_share_phone_status_desc">すべてのチャット ターンにアプリと電話に関する短いシステム メッセージを含めます</string>
+    <string name="chat_settings_share_phone_status_desc">API のみのチャットにアプリと端末のコンテキストを含めます。標準の Gateway チャットでは送信されません。</string>
     <string name="chat_settings_bridge_permissions">Bridge + 権限</string>
     <string name="chat_settings_bridge_permissions_desc">アクセシビリティ、画面キャプチャ、オーバーレイ、通知が許可されているかどうか</string>
     <string name="chat_settings_foreground_app">フォアグラウンドアプリ</string>
@@ -805,7 +805,7 @@
     <string name="chat_settings_battery_level_desc">現在のバッテリーのパーセント。デフォルトではオフです。</string>
     <string name="chat_settings_safety_rails">安全レール</string>
     <string name="chat_settings_safety_rails_desc">ブロックリストの数、破壊的な動詞の数、および自動無効化タイマー</string>
-    <string name="chat_settings_preview">プレビュー</string>
+    <string name="chat_settings_preview">API のみのチャットの例</string>
     <string name="chat_settings_no_system_message">(システムメッセージは送信されません)</string>
     <string name="chat_settings_parse_tool_annotations">解析ツールの注釈</string>
     <string name="chat_settings_experimental">実験的</string>
@@ -3371,10 +3371,10 @@
     <string name="injected_context_phone_status_title">電話のステータス</string>
     <string name="injected_context_relay_not_set">Relayが設定されていません</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">次のメッセージで送信されるコンテキスト</string>
+    <string name="injected_context_subtitle">このチャットのプレビューです。サーバー側のコンテキストは別途設定されます。</string>
     <string name="injected_context_title">挿入されたコンテキスト</string>
     <string name="injected_context_turn_not_set">未設定</string>
-    <string name="injected_context_turn_title">回転検出モード</string>
+    <string name="injected_context_turn_title">ターンのコンテキスト</string>
     <string name="model_picker_cd_clear">クリア</string>
     <string name="model_picker_count">%d モデル</string>
     <string name="power_feature_back_desc">戻る</string>
@@ -4599,4 +4599,5 @@
     <string name="voice_overlay_setup_start">音声オーバーレイを開始</string>
     <string name="voice_overlay_settings_hint">両方のビルドで任意に利用できます。チャットの音声フォーカスでオーバーレイを選択します。権限の付与だけで録音は始まりません。</string>
     <string name="voice_overlay_reset_position">位置をリセット</string>
+    <string name="injected_context_gateway_unsupported">Gateway チャットでは送信されません。この接続はターンごとの追加コンテキストに対応していません。</string>
 </resources>

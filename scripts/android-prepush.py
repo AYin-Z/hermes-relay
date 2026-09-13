@@ -21,6 +21,9 @@ import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 FOCUSED_TESTS = (
+    "com.hermesandroid.relay.viewmodel.InjectedContextTest",
+    "com.hermesandroid.relay.screenshots.InjectedContextSheetTest",
+    "com.hermesandroid.relay.viewmodel.ChatViewModelGatewayInboundTurnTest.injectedContextPreviewMatchesBareGatewayPayload",
     "com.hermesandroid.relay.voice.VoiceOverlayLifecycleTest",
     "com.hermesandroid.relay.voice.VoiceOverlayForegroundServiceTest",
     "com.hermesandroid.relay.voice.VoiceOverlayPresentationTest",

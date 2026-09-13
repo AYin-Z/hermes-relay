@@ -773,7 +773,7 @@
     <string name="chat_settings_notify_when_finishes">Уведомления о фоновом чате</string>
     <string name="chat_settings_notify_when_finishes_desc">Уведомлять, когда Гермес требует ввода или заканчивает работу, когда приложение находится в фоновом режиме</string>
     <string name="chat_settings_share_phone_status">Поделиться статусом телефона с агентом</string>
-    <string name="chat_settings_share_phone_status_desc">Включите короткое системное сообщение о приложении и телефоне в каждом обороте чата</string>
+    <string name="chat_settings_share_phone_status_desc">Добавлять контекст приложения и телефона в чаты только через API. В стандартных чатах Gateway он не отправляется.</string>
     <string name="chat_settings_bridge_permissions">Мост + разрешения</string>
     <string name="chat_settings_bridge_permissions_desc">Разрешения на доступность, захват экрана, наложение, уведомления</string>
     <string name="chat_settings_foreground_app">Приложение на переднем плане</string>
@@ -782,7 +782,7 @@
     <string name="chat_settings_battery_level_desc">Текущий процент заряда батареи. По умолчанию выключено.</string>
     <string name="chat_settings_safety_rails">Ограждения безопасности</string>
     <string name="chat_settings_safety_rails_desc">Количество в черном списке, количество деструктивных глаголов и таймер автоматического отключения</string>
-    <string name="chat_settings_preview">Предпросмотр</string>
+    <string name="chat_settings_preview">Пример чата только через API</string>
     <string name="chat_settings_no_system_message">(системное сообщение не будет отправлено)</string>
     <string name="chat_settings_parse_tool_annotations">Анализ аннотаций инструментов</string>
     <string name="chat_settings_experimental">Экспериментальные</string>
@@ -3234,10 +3234,10 @@
     <string name="injected_context_phone_status_title">Статус телефона</string>
     <string name="injected_context_relay_not_set">плагин Relay не настроен</string>
     <string name="injected_context_relay_title">плагин Relay</string>
-    <string name="injected_context_subtitle">Контекст отправляется с следующим сообщением</string>
+    <string name="injected_context_subtitle">Предпросмотр для этого чата. Контекст на стороне сервера настраивается отдельно.</string>
     <string name="injected_context_title">Внедренный контекст</string>
     <string name="injected_context_turn_not_set">Не установлено</string>
-    <string name="injected_context_turn_title">Режим обнаружения Turn</string>
+    <string name="injected_context_turn_title">Контекст хода</string>
     <string name="model_picker_cd_clear">Очистить</string>
     <string name="model_picker_count">%d моделей</string>
     <string name="power_feature_back_desc">Назад</string>
@@ -4343,4 +4343,5 @@
     <string name="voice_overlay_setup_start">Начать голосовой оверлей</string>
     <string name="voice_overlay_settings_hint">Необязательно в обеих сборках. Откройте голосовой фокус в чате и выберите оверлей. Одни разрешения никогда не включают прослушивание.</string>
     <string name="voice_overlay_reset_position">Сбросить положение</string>
+    <string name="injected_context_gateway_unsupported">Не отправляется в чате Gateway. Это подключение не поддерживает дополнительный контекст для каждого хода.</string>
 </resources>

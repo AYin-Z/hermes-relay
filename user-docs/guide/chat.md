@@ -248,15 +248,22 @@ Each assistant message shows token usage below the timestamp:
 
 ## App context prompt
 
-When enabled (**Settings → Chat → App context prompt**, on by default),
-Hermes-Relay tells the agent it's talking to a phone so replies stay
-mobile-friendly and concise, and can attach optional bridge/permission and
-safety-rail summaries. On the standard (API-server) connection this rides an
-invisible system message. The Gateway connection carries no app-context preamble
-— its protocol has no hidden per-turn slot, and adding one would leave the text
-in your saved chat history — so there the agent reads phone state on demand via
-the `android_phone_status` tool. Privacy-sensitive fields (foreground app,
-battery) default off and are only added when you opt in.
+**Settings → Chat → Share phone status with agent** controls an extra system
+message in API-only chats. It identifies Hermes-Relay Android to the agent and
+can include optional phone status. Foreground app and battery sharing default
+off and are included only when you opt in. Turning the master switch off also
+removes the Android preamble.
+
+Standard Gateway chats do not send this block: upstream has no general
+per-turn context slot. The **Injected context** sheet marks phone status and
+turn context as unsupported on Gateway, and Settings labels its sample as an
+API-only example. The sheet is a preview, not proof of delivery or a complete
+view of the agent prompt; persona and Relay configuration are server-owned.
+
+The optional Relay `android_phone_status` tool can provide phone state when
+enabled for the selected profile. Its presence does not identify who sent the
+current message. Automatic Android identification on Gateway still needs an
+upstream client-surface contract; pairing alone does not provide it.
 
 ## Persistent connection
 

@@ -796,7 +796,7 @@
     <string name="chat_settings_notify_when_finishes">后台聊天提醒</string>
     <string name="chat_settings_notify_when_finishes_desc">Hermes 在后台需要输入或完成回复时通知</string>
     <string name="chat_settings_share_phone_status">与代理分享手机状态</string>
-    <string name="chat_settings_share_phone_status_desc">每轮聊天附带一条关于应用和手机的简短系统消息</string>
+    <string name="chat_settings_share_phone_status_desc">在仅使用 API 的聊天中包含应用和手机上下文。标准 Gateway 聊天不会发送此内容。</string>
     <string name="chat_settings_bridge_permissions">Bridge + 权限</string>
     <string name="chat_settings_bridge_permissions_desc">无障碍、屏幕捕获、悬浮窗、通知是否已授权</string>
     <string name="chat_settings_foreground_app">前台应用</string>
@@ -805,7 +805,7 @@
     <string name="chat_settings_battery_level_desc">当前电池百分比。默认关闭。</string>
     <string name="chat_settings_safety_rails">安全护栏</string>
     <string name="chat_settings_safety_rails_desc">黑名单数量、破坏性动词数量和自动禁用计时器</string>
-    <string name="chat_settings_preview">预览</string>
+    <string name="chat_settings_preview">仅使用 API 的聊天示例</string>
     <string name="chat_settings_no_system_message">（不会发送系统消息）</string>
     <string name="chat_settings_parse_tool_annotations">解析工具标注</string>
     <string name="chat_settings_experimental">实验性</string>
@@ -3295,10 +3295,10 @@
     <string name="injected_context_phone_status_title">手机状态</string>
     <string name="injected_context_relay_not_set">未配置 Relay</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">随下一条消息发送的上下文</string>
+    <string name="injected_context_subtitle">此聊天的预览。服务器端上下文单独配置。</string>
     <string name="injected_context_title">注入上下文</string>
     <string name="injected_context_turn_not_set">未设置</string>
-    <string name="injected_context_turn_title">轮换检测模式</string>
+    <string name="injected_context_turn_title">本轮上下文</string>
     <string name="model_picker_cd_clear">清空</string>
     <string name="model_picker_count">%d 个模型</string>
     <string name="power_feature_back_desc">返回</string>
@@ -4528,4 +4528,5 @@
     <string name="voice_overlay_setup_start">启动语音悬浮窗</string>
     <string name="voice_overlay_settings_hint">两个版本均可选择使用。在聊天的语音专注模式中选择悬浮窗。仅授予权限不会开始监听。</string>
     <string name="voice_overlay_reset_position">重置位置</string>
+    <string name="injected_context_gateway_unsupported">Gateway 聊天不会发送此内容。此连接不支持每轮附加上下文。</string>
 </resources>

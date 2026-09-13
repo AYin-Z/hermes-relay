@@ -3215,8 +3215,8 @@ fun ChatScreen(
                 )
             }
             if (!supervised && showContextSheet) {
-                // Live audit of the exact extra context the agent will be
-                // injected with on the next turn (transparency / auditability).
+                // Snapshot of supported client context and separately reported
+                // server configuration, not a delivery receipt.
                 InjectedContextSheet(
                     context = remember(showContextSheet) {
                         chatViewModel.previewInjectedContext()
