@@ -6,11 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Optional voice controls over other apps in Google Play, with contextual permission setup, a persistent Stop voice notification, and session shutdown on screen lock or permission loss. Phone control remains sideload-only.
+
 ### Fixed
 
 - Relay Dashboard WebSockets work with current Hermes authentication helpers while preserving older-host compatibility, single-use tickets, Host/Origin/IP checks, and Relay session authentication.
+- Android shows Hermes profile display names and groups the resolved server default under its agent identity, while preserving explicit profile selection and saved conversations.
 
-## [Android 1.16.0] - 2026-09-09
+## [Android 1.16.1] - 2026-09-12
+
+### Fixed
+
+- Android Dashboard-only connections start the profile-scoped session directory before Gateway readiness, so a cold launch no longer leaves both the directory and passive Gateway socket waiting on each other. (#495, #528)
+
+## [Android 1.16.0] - 2026-09-10
 
 ### Fixed
 
@@ -24,7 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Chat distinguishes session preparation from response streaming and retains initialization errors that arrive before the session acknowledgement. Long-press the agent header to open a live session-diagnostics drawer.
 - Delegated-agent activity survives parent replies and leaves compact history entries for later read-only review. The activity strip appears only while work runs; historical process views cannot stop or dismiss live work. (#447)
 
-## [Plugin 1.11.2] - 2026-09-09
+## [Plugin 1.11.2] - 2026-09-10
 
 ### Fixed
 
