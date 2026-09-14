@@ -1,11 +1,19 @@
-v1.16.1 - Dashboard-only cold starts recover
+v1.17.0 - Voice over other apps and clearer conversations
 
 Summary
-* Dashboard-only connections can now prepare the selected profile and open Gateway chat without waiting for a background, resume, or network-route change.
+* Google Play gains optional voice controls over other apps. Clarify questions, profile names, and chat context are easier to follow without losing confirmed answers or saved conversations.
 
 Highlights
-* Open Gateway chat from a Dashboard-only cold start — The selected profile's session directory starts before Gateway readiness, so it cannot wait on the same passive socket that depends on its result.
+* Keep voice controls over other apps — Start Voice Overlay from Voice Focus after granting microphone, notification, and display-over-other-apps access. Stop voice from its controls or persistent notification; screen lock and permission loss end the session.
+* Answer Clarify questions one at a time — Multi-question requests support separate choices and custom answers. Confirmed progress survives reconnects, and failed sends keep the current answer available.
+* Recognize profiles by their display names — Profiles use their Hermes display names, and the resolved server default appears under its agent identity. Explicit profile choices and saved conversations are preserved.
+
+Improved
+* Read cleaner chat cards — Standalone response cards lose the extra outer bubble, assistant messages use quieter surfaces, and delivery status sits beside the timestamp.
+
+Fixed
+* See which context your chat can send — Gateway previews mark phone status and turn context as unavailable. Automatic phone-status sharing is labeled for API-only chats, where it remains supported.
 
 Compatibility
-* Standard Dashboard and Gateway chat continue to use current upstream Hermes without requiring the optional Hermes-Relay Plugin.
-* Hermes-Relay Plugin 1.11.2 remains the matching optional release for Relay tools.
+* Voice Overlay is now available in Google Play and sideload builds. Device Control remains sideload-only.
+* Standard Chat and voice use upstream Hermes without requiring Hermes-Relay Plugin. Gateway phone-status delivery and automatic Android identification remain unavailable.

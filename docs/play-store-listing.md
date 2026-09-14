@@ -91,9 +91,9 @@ This app is a community project and is not affiliated with or endorsed by NousRe
 Paste into Play Console → **What's new** (≤500 characters):
 
 ```
-v1.16.1 - Dashboard-only cold starts recover
+v1.17.0 - Voice over other apps and clearer conversations
 
-Dashboard-only connections now prepare the selected profile before Gateway readiness, fixing a remaining cold-start path that could stay on waking or waiting for Gateway until the app resumed or its network route changed.
+Use optional voice controls over other apps, with clear permission setup and an immediate Stop action. Answer Clarify batches one question at a time, with progress preserved across reconnects. Enjoy cleaner chat cards, recognizable profile names, and context previews that show what your connection supports. Phone control remains sideload-only.
 ```
 ## Category
 

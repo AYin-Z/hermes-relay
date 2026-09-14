@@ -43,7 +43,7 @@
       <p>The sideload build is a separate distribution track for users who intentionally install Device Control outside Google Play.</p>
 
       <h2>Data storage</h2>
-      <p>All data is stored locally on your device in the app's private sandbox.</p>
+      <p>App settings, credentials, drafts and recovery state are stored locally in the app's private sandbox. Content sent to your configured Hermes server and AI providers follows their storage and retention settings.</p>
       <table>
         <thead><tr><th>Data</th><th>Storage method</th></tr></thead>
         <tbody>
@@ -54,11 +54,11 @@
           <tr><td>Pending Android Assistant context</td><td>App-private cache until one turn is accepted, cancellation/session exit, or one-hour stale cleanup; failed preflight retains it for retry</td></tr>
         </tbody>
       </table>
-      <p>Chat messages are not cached on your device. They are loaded from your Hermes server on demand and exist only in memory while the app is running.</p>
+      <p>Your Hermes server owns conversation history. The app retains local drafts, queued messages and bounded in-flight turn checkpoints to recover interrupted conversations; these can include message text and confirmed Clarify answers. Attachment and Android Assistant context caches support viewing, sending and retrying content.</p>
 
       <h2>Network connections</h2>
-      <p>The app connects only to endpoints you configure: your Hermes Dashboard/Gateway for standard chat, management, voice, and inbound files; your optional API server for chat fallback; your relay server for terminal and TUI relay, Bridge Core status, explicit Relay media enhancements, notification companion, and session management; and your relay voice routes when you use enhanced Voice modes.</p>
-      <p>No connections are made to Google, Anthropic, or any other third-party service by the app. There is no telemetry, advertising, external crash reporting, DNS prefetching, or background network activity to hosted Hermes-Relay services. Your Hermes server may separately connect to AI providers according to its configuration; that server-side activity is outside the scope of this app.</p>
+      <p>Chat and voice content goes to endpoints you configure: your Hermes Dashboard/Gateway for standard chat, management, voice, and inbound files; an explicitly selected API-only connection for compatible chat; your relay server for terminal and TUI relay, Bridge Core status, explicit Relay media enhancements, notification companion, and session management; and your relay voice routes when you use enhanced Voice modes. Gateway-owned chats do not silently switch to an API server.</p>
+      <p>There is no telemetry, advertising or automatic external crash reporting. Your Hermes server may send content to AI providers according to its configuration. Optional update checks and links can contact public distribution and documentation services; these do not upload chat or voice content.</p>
 
       <h2>Voice Overlay</h2>
       <p>Voice Overlay is optional in both builds. Start it explicitly from Voice Focus while Hermes-Relay is visible and unlocked. It requires microphone access, display-over-other-apps access and an enabled microphone notification with Stop voice. Audio goes to the configured Hermes server; the overlay does not read or control other apps. Stop voice, closing the overlay, screen lock, task removal or loss of required access ends the overlay voice session. Returning to the app keeps foreground protection until the app is resumed. Granting permissions never starts a session.</p>
