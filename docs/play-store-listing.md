@@ -201,6 +201,12 @@ The Play build declares `SYSTEM_ALERT_WINDOW` only for explicitly user-started V
 
 The Play build does **not** declare `FOREGROUND_SERVICE_MEDIA_PROJECTION` or the Device Control accessibility/bridge services — those are sideload-only.
 
+#### Reviewer recording retention
+
+Android 1.17.0 (57) recordings cover [microphone use: Voice Overlay and local wake](https://hermes-relay.dev/play-review/android-microphone-fgs-v1.17.0.mp4) and the [connection foreground service](https://hermes-relay.dev/play-review/android-connection-service-v1.17.0.mp4). The [reviewer page](https://hermes-relay.dev/play-review/) records their emulator scope and limitations. These versioned recordings do not certify later builds.
+
+Keep Console-linked footage in persistent media storage so website deployments preserve the links. Before updating a declaration, verify public access, `video/mp4` content type, byte-range playback and published checksums.
+
 ### Data safety
 
 There is no telemetry, advertising, or third-party analytics SDK. App traffic goes
