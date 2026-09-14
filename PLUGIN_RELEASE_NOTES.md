@@ -1,17 +1,14 @@
 # Hermes-Relay Plugin v__VERSION__
 
-**Release Date:** September 10, 2026
+**Release Date:** September 13, 2026
 
 ## Summary
 
-This patch makes Android and Desktop tool availability fast and reliable when Relay is unavailable, starts late-created Android bridge sessions without restarting Hermes, and restores compatibility with both current and legacy `android_setup` arguments. Standard Chat, Manage, standard voice, and ordinary inbound files remain upstream-owned.
+Dashboard WebSocket connections work again with current Hermes authentication helpers, while older Hermes hosts remain supported.
 
 ## Fixed
 
-- **Fast, accurate tool availability.** Android and Desktop tool checks use explicit IPv4 loopback and one bounded health snapshot instead of repeated per-tool connection attempts. Multi-PC capability advertisements remain isolated, and unavailable Relay clients continue to fail closed.
-- **Late Android bridge recovery.** `android_*` calls retry profile-scoped and active bridge-session credentials after a stale token is rejected, so a phone connected after Hermes startup becomes usable without restarting the host.
-- **Compatible Android setup arguments.** `android_setup` accepts the canonical `bridge_session_token` and `pairing_code` fields as well as their legacy aliases, with structured errors when no usable credential is supplied.
-- **Isolated setup tests.** Android tool setup tests use a temporary Hermes home instead of writing bridge settings into the operator environment.
+- Resolve WebSocket guards from their current upstream module and retain the older-host fallback. Single-use tickets, Host/Origin/IP checks, and independent Hermes-Relay session authentication remain enforced. Missing or incomplete helper contracts deny admission.
 
 ## Install / update
 
