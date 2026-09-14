@@ -18,6 +18,58 @@ from vanilla_gateway.evidence import EvidenceLog  # noqa: E402
 
 
 class FixtureTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_clarify_batch_requires_each_qid_and_replays_partial_progress(self) -> None:
+        fixture, base_url = await self.start("clarify_batch")
+        ws, _ = await self.connect(base_url)
+        await self.rpc(ws, 1, "prompt.submit")
+        frames = await self.frames_until(ws, lambda f: f.get("params", {}).get("type") == "clarify.request")
+        request = frames[-1]["params"]["payload"]
+        rid = request["request_id"]
+        await self.rpc(ws, 2, "clarify.respond", {"request_id": rid, "question_id": "foreign", "answer": "x"})
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 2)
+        self.assertEqual(4002, frames[-1]["error"]["code"])
+        await self.rpc(ws, 3, "clarify.respond", {"request_id": rid, "question_id": "route/a", "answer": "Canary"})
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 3)
+        self.assertEqual(["environment:b"], frames[-1]["result"]["remaining"])
+        self.assertTrue(fixture.running)
+        await ws.close()
+        ws, _ = await self.connect(base_url)
+        await self.rpc(ws, 4, "session.activate", {"session_id": fixture.scenario.live_session_id})
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 4)
+        self.assertEqual({"route/a": "Canary"}, frames[-1]["result"]["pending_clarify"]["answers"])
+        await self.rpc(ws, 5, "clarify.respond", {
+            "request_id": rid, "question_id": "environment:b", "answer": '["Stage","Production"]',
+        })
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 5)
+        self.assertEqual([], frames[-1]["result"]["remaining"])
+        self.assertEqual('["Stage","Production"]', fixture._clarify_answers["environment:b"])
+        frames = await self.frames_until(ws, lambda f: f.get("params", {}).get("type") == "message.complete")
+        self.assertEqual("message.complete", frames[-1]["params"]["type"])
+
+    async def test_clarify_legacy_keeps_unkeyed_response(self) -> None:
+        _, base_url = await self.start("clarify_legacy")
+        ws, _ = await self.connect(base_url)
+        await self.rpc(ws, 1, "prompt.submit")
+        frames = await self.frames_until(ws, lambda f: f.get("params", {}).get("type") == "clarify.request")
+        payload = frames[-1]["params"]["payload"]
+        self.assertNotIn("questions", payload)
+        await self.rpc(ws, 2, "clarify.respond", {"request_id": payload["request_id"], "answer": "Canary"})
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 2)
+        self.assertEqual("ok", frames[-1]["result"]["status"])
+
+    async def test_one_normalized_question_is_still_qid_owned(self) -> None:
+        _, base_url = await self.start("clarify_normalized_single")
+        ws, _ = await self.connect(base_url)
+        await self.rpc(ws, 1, "prompt.submit")
+        frames = await self.frames_until(ws, lambda f: f.get("params", {}).get("type") == "clarify.request")
+        payload = frames[-1]["params"]["payload"]
+        self.assertEqual(1, len(payload["questions"]))
+        await self.rpc(ws, 2, "clarify.respond", {
+            "request_id": payload["request_id"], "question_id": payload["questions"][0]["qid"], "answer": "Canary",
+        })
+        frames = await self.frames_until(ws, lambda f: f.get("id") == 2)
+        self.assertEqual([], frames[-1]["result"]["remaining"])
+
     async def asyncSetUp(self) -> None:
         self.session = ClientSession()
         self.runner: web.AppRunner | None = None

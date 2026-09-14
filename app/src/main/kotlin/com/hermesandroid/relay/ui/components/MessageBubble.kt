@@ -62,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -214,7 +215,7 @@ fun MessageBubble(
         message.role == MessageRole.USER -> MaterialTheme.colorScheme.primary
         message.role == MessageRole.SYSTEM -> MaterialTheme.colorScheme.tertiaryContainer
         isActionBubble -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f)
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     val textColor = when (message.role) {
@@ -436,8 +437,8 @@ fun MessageBubble(
         // rows) would otherwise paint a bare timestamp-only chip between the
         // Thought-process block and the tool pill. The first-token working state
         // is rendered directly in the conversation
-        // lane below, without an opaque bubble. Cards and attachments still own
-        // a normal bubble even when response prose has not arrived yet.
+        // lane below, without an opaque bubble. Standalone cards own their own
+        // surface; wrapping those in another filled bubble duplicates the chrome.
         streamingStatusLabel?.takeIf { showWorkingStatus }?.let { streamingStatus ->
             StandaloneStreamingStatus(
                 status = streamingStatus,
@@ -454,6 +455,10 @@ fun MessageBubble(
             message.cards.isNotEmpty() ||
             message.attachments.isNotEmpty() ||
             inlineImages.isNotEmpty()
+        val standaloneCards = !isUser && !isSystem &&
+            visibleMessageContent.isBlank() && quoteEnvelope == null &&
+            message.cards.isNotEmpty() && message.attachments.isEmpty() &&
+            inlineImages.isEmpty() && !showImageGeneration
         if (showBubble) {
         Row(
             modifier = Modifier.widthIn(max = maxBubbleWidth),
@@ -599,11 +604,11 @@ fun MessageBubble(
             ),
         ) {
         Surface(
-            shape = bubbleShape,
-            color = backgroundColor,
+            shape = if (standaloneCards) RectangleShape else bubbleShape,
+            color = if (standaloneCards) Color.Transparent else backgroundColor,
             modifier = Modifier
                 .then(
-                    if (!isUser && !isSystem && isDarkTheme) {
+                    if (!isUser && !isSystem && isDarkTheme && !standaloneCards) {
                         Modifier.leftEdgeGlow(
                             alpha = 0.12f,
                             width = 28.dp,
@@ -651,7 +656,8 @@ fun MessageBubble(
                 )
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                modifier = if (standaloneCards) Modifier
+                    else Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             ) {
                 quoteEnvelope?.let { envelope ->
                     ChatQuoteReferenceChip(
@@ -741,7 +747,7 @@ fun MessageBubble(
                             onInputSubmit = { key, value ->
                                 onCardInput(message.id, key, value)
                             },
-                            maxWidth = maxBubbleWidth - 24.dp,
+                            maxWidth = if (standaloneCards) maxBubbleWidth else maxBubbleWidth - 24.dp,
                             modifier = Modifier.padding(vertical = 2.dp),
                         )
                     }
@@ -823,6 +829,7 @@ fun MessageBubble(
 
                 val hasTokenUsage = showUsage && !isUser &&
                     (message.inputTokens != null || message.outputTokens != null)
+                val deliveryStatus = message.deliveryStatus?.takeIf { isUser }
 
                 // Timestamp — only on the LAST bubble of a same-author run so a
                 // burst of fragments doesn't stack three near-touching time labels.
@@ -831,13 +838,14 @@ fun MessageBubble(
                 // This row is reserved from the first streaming frame. Completion
                 // can reveal both timestamp and token usage without adding a new
                 // footer line or changing the bubble's measured height.
-                if (isLastInGroup && (showTimestamps || hasTokenUsage)) {
+                if ((isLastInGroup && (showTimestamps || hasTokenUsage)) || deliveryStatus != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        modifier = if (standaloneCards) Modifier.padding(horizontal = 4.dp) else Modifier,
                     ) {
-                        if (showTimestamps) Text(
+                        if (isLastInGroup && showTimestamps) Text(
                             text = timeFormat.format(Date(message.timestamp)),
                             style = MaterialTheme.typography.labelSmall,
                             color = textColor.copy(alpha = if (message.isStreaming) 0f else 0.6f),
@@ -847,31 +855,28 @@ fun MessageBubble(
                                 Modifier
                             },
                         )
-                        if (hasTokenUsage) {
+                        if (isLastInGroup && hasTokenUsage) {
                             TokenDisplay(
                                 inputTokens = message.inputTokens,
                                 outputTokens = message.outputTokens,
                             )
                         }
+                        // Share the footer line, retaining the user bubble's contrasting foreground.
+                        deliveryStatus?.let { status ->
+                            MessageDeliveryIndicator(
+                                status = status,
+                                contentColor = textColor,
+                                text = MessageDeliveryIndicatorText(
+                                    sending = stringResource(R.string.msg_bubble_sending),
+                                    queued = stringResource(R.string.msg_bubble_queued),
+                                    steered = stringResource(R.string.msg_bubble_steered),
+                                    delivered = stringResource(R.string.msg_bubble_delivered),
+                                    failed = stringResource(R.string.msg_bubble_not_sent),
+                                    tapToRetry = stringResource(R.string.chat_retry),
+                                ),
+                            )
+                        }
                     }
-                }
-
-                // Delivery status for local user messages, including steering.
-                // Use the bubble's foreground: accent-on-accent hides the label.
-                message.deliveryStatus?.takeIf { isUser }?.let { status ->
-                    Spacer(modifier = Modifier.height(2.dp))
-                    MessageDeliveryIndicator(
-                        status = status,
-                        contentColor = textColor,
-                        text = MessageDeliveryIndicatorText(
-                            sending = stringResource(R.string.msg_bubble_sending),
-                            queued = stringResource(R.string.msg_bubble_queued),
-                            steered = stringResource(R.string.msg_bubble_steered),
-                            delivered = stringResource(R.string.msg_bubble_delivered),
-                            failed = stringResource(R.string.msg_bubble_not_sent),
-                            tapToRetry = stringResource(R.string.chat_retry),
-                        ),
-                    )
                 }
 
                 // Non-tail historical fragments have no reserved timestamp row.

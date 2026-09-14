@@ -72,6 +72,9 @@ import com.hermesandroid.relay.network.upstream.ActiveTurnKeepAliveRegistry
 import com.hermesandroid.relay.network.upstream.GatewayAsk
 import com.hermesandroid.relay.network.upstream.GatewayAskExpiry
 import com.hermesandroid.relay.network.upstream.GatewayAskResponse
+import com.hermesandroid.relay.data.HermesCardClarifyBatch
+import com.hermesandroid.relay.data.HermesCardClarifyQuestion
+import com.hermesandroid.relay.data.clarifyQuestionCardKey
 import com.hermesandroid.relay.network.upstream.GatewayAgentNotice
 import com.hermesandroid.relay.network.upstream.GatewayActiveSession
 import com.hermesandroid.relay.network.upstream.GatewayActiveSessionStatus
@@ -3652,7 +3655,7 @@ class ChatViewModel : ViewModel() {
     private val backgroundPendingInteractions =
         ConcurrentHashMap<TurnCheckpointKey, BackgroundPendingInteraction>()
 
-    /** Ask cardKeys with a respond RPC in flight — blocks double-taps until it settles. */
+    /** Request-incarnation/card keys with a respond RPC in flight. */
     private val answeredAskIds = mutableSetOf<String>()
 
     /**
@@ -6774,7 +6777,18 @@ class ChatViewModel : ViewModel() {
             existing.ask.kind == ask.kind &&
             existing.ask.requestId == ask.requestId
         ) {
-            sessionId?.let { maybeNotifyInteraction(it, existing.ask) }
+            if (ask.questions.isNotEmpty()) {
+                val updated = existing.copy(ask = ask.copy(answers = existing.ask.answers + ask.answers))
+                _pendingAsk.value = updated
+                updateClarifyBatchCard(handler, updated)
+                if (updated.ask.clarifyComplete) {
+                    _pendingAsk.value = null
+                    updated.sessionId?.let { cancelInteractionNotification(it, updated.ask) }
+                    activeTurnCheckpointKey()?.let { ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), false) }
+                }
+                scheduleCheckpointWrite(immediate = true)
+            }
+            _pendingAsk.value?.let { pending -> sessionId?.let { maybeNotifyInteraction(it, pending.ask) } }
             return
         }
         existing?.let { pending ->
@@ -6787,8 +6801,11 @@ class ChatViewModel : ViewModel() {
             publishBackgroundSessionActivity()
         }
         val now = restored?.receivedAt ?: System.currentTimeMillis()
-        val cardKey = restored?.cardKey ?: ask.requestId
+        val proposedCardKey = restored?.cardKey ?: ask.requestId
             ?: "approval-${handler.currentSessionId.value ?: "session"}-$now"
+        val cardKey = if (restored == null && handler.messages.value.any { message ->
+                message.cards.any { it.id == proposedCardKey }
+            }) "$proposedCardKey-${java.util.UUID.randomUUID()}" else proposedCardKey
         val expiresAt = ask.timeoutSeconds.takeIf { it > 0 }?.let { now + it * 1_000L }
         val card = when (ask.kind) {
             GatewayAsk.Kind.APPROVAL -> HermesCard(
@@ -6887,10 +6904,50 @@ class ChatViewModel : ViewModel() {
             contextKey = contextKey,
             sessionId = sessionId,
             receivedAt = now,
+            ownerId = restored?.ownerId ?: java.util.UUID.randomUUID().toString(),
         )
+        if (ask.questions.isNotEmpty()) updateClarifyBatchCard(handler, requireNotNull(_pendingAsk.value))
+        if (ask.clarifyComplete) {
+            _pendingAsk.value = null
+            activeKey?.let { ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), false) }
+            scheduleCheckpointWrite(immediate = true)
+            return
+        }
         activeKey?.let { ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), true) }
         scheduleCheckpointWrite(immediate = true)
         sessionId?.let { maybeNotifyInteraction(it, ask) }
+    }
+
+    private fun updateClarifyBatchCard(handler: ChatHandler, pending: PendingAsk) {
+        val ask = pending.ask
+        if (ask.questions.isEmpty()) return
+        handler.updateAskCardMessage(
+            pending.messageId,
+            HermesCard(
+                type = HermesCard.BuiltInTypes.ASK_CLARIFY,
+                title = appContext?.getString(R.string.chat_approval_clarify_title) ?: "Hermes needs clarification",
+                accent = HermesCard.Accents.INFO,
+                id = pending.cardKey,
+                clarifyBatch = HermesCardClarifyBatch(
+                    questions = ask.questions.map { question ->
+                        val key = clarifyQuestionCardKey(pending.cardKey, question.qid)
+                        HermesCardClarifyQuestion(
+                            key = key,
+                            question = question.question,
+                            input = HermesCardInput(
+                                kind = if (question.choices.isEmpty()) HermesCardInput.Kinds.TEXT else HermesCardInput.Kinds.CHOICE,
+                                choices = question.choices,
+                                multiSelect = question.multiSelect,
+                                allowFreeText = true,
+                            ),
+                            answer = ask.answers[question.qid],
+                            submitting = "${pending.ownerId}:$key" in answeredAskIds,
+                        )
+                    },
+                    expiresAtMillis = ask.timeoutSeconds.takeIf { it > 0 }?.let { pending.receivedAt + it * 1_000L },
+                ),
+            ),
+        )
     }
 
     /**
@@ -6966,21 +7023,35 @@ class ChatViewModel : ViewModel() {
     fun answerAsk(messageId: String, cardKey: String, value: String) {
         val handler = chatHandler ?: return
         val pending = _pendingAsk.value
+        val question = pending?.ask?.questions?.firstOrNull {
+            clarifyQuestionCardKey(pending.cardKey, it.qid) == cardKey
+        }
         if (pending == null ||
-            pending.cardKey != cardKey ||
+            pending.messageId != messageId ||
+            (if (pending.ask.questions.isNotEmpty()) question == null else pending.cardKey != cardKey) ||
             pending.contextKey != activeProfileContextKey ||
             pending.sessionId != handler.currentSessionId.value
         ) {
             handler.addSystemNotice("This request is no longer active.")
             return
         }
+        if (pending.ask.kind == GatewayAsk.Kind.CLARIFY && value.isBlank()) return
+        if (pending.ask.kind == GatewayAsk.Kind.CLARIFY && pending.ask.timeoutSeconds > 0 &&
+            System.currentTimeMillis() >= pending.receivedAt + pending.ask.timeoutSeconds * 1_000L
+        ) {
+            expirePendingAsk(GatewayAskExpiry(pending.ask.kind, pending.ask.requestId))
+            return
+        }
+        if (question != null && question.qid in pending.ask.answers) return
         val gateway = gatewayClient
         if (gateway == null) {
             emitError(Exception("Gateway is not connected"), context = "send_message")
             return
         }
-        // In-flight guard: one respond RPC per card at a time.
-        if (!answeredAskIds.add(cardKey)) return
+        // Include the request incarnation so a late completion cannot unlock a reused id.
+        val flightKey = "${pending.ownerId}:$cardKey"
+        if (!answeredAskIds.add(flightKey)) return
+        updateClarifyBatchCard(handler, pending)
         val ask = pending.ask
         val stampValue = when (ask.kind) {
             // Empty sudo password = decline — stamp matches the Deny action
@@ -6992,11 +7063,19 @@ class ChatViewModel : ViewModel() {
             else -> value
         }
         viewModelScope.launch {
+            fun ownsResponse(): Boolean = chatHandler === handler && gatewayClient === gateway &&
+                activeProfileContextKey == pending.contextKey &&
+                handler.currentSessionId.value == pending.sessionId &&
+                _pendingAsk.value?.ownerId == pending.ownerId
+            if (!ownsResponse()) {
+                answeredAskIds.remove(flightKey)
+                return@launch
+            }
             val requestId = ask.requestId
             val result = when (ask.kind) {
                 GatewayAsk.Kind.APPROVAL -> gateway.respondApproval(choice = value)
                 GatewayAsk.Kind.CLARIFY ->
-                    requestId?.let { gateway.respondClarify(it, value) }
+                    requestId?.let { gateway.respondClarify(it, value.trim(), question?.qid) }
                         ?: Result.failure(GatewayRpcException("ask has no request id"))
                 GatewayAsk.Kind.SUDO ->
                     requestId?.let { gateway.respondSudo(it, value) }
@@ -7007,6 +7086,8 @@ class ChatViewModel : ViewModel() {
             }
             result.fold(
                 onSuccess = { response ->
+                    answeredAskIds.remove(flightKey)
+                    if (!ownsResponse()) return@fold
                     if (response == GatewayAskResponse.EXPIRED) {
                         expirePendingAsk(
                             GatewayAskExpiry(
@@ -7016,10 +7097,24 @@ class ChatViewModel : ViewModel() {
                         )
                         return@fold
                     }
+                    if (question != null) {
+                        val current = requireNotNull(_pendingAsk.value)
+                        val updated = current.copy(ask = current.ask.copy(answers = current.ask.answers + (question.qid to value.trim())))
+                        updateClarifyBatchCard(handler, updated)
+                        if (updated.ask.questions.all { it.qid in updated.ask.answers }) {
+                            updated.sessionId?.let { cancelInteractionNotification(it, updated.ask) }
+                            _pendingAsk.value = null
+                            activeTurnCheckpointKey()?.let { ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), false) }
+                        } else {
+                            _pendingAsk.value = updated
+                        }
+                        scheduleCheckpointWrite(immediate = true)
+                        return@fold
+                    }
                     // Collapse only after the server confirms — a failed RPC
                     // must leave the card answerable for a retry.
                     handler.recordCardDispatch(pending.messageId, cardKey, stampValue)
-                    if (_pendingAsk.value === pending) {
+                    if (ownsResponse()) {
                         pending.sessionId?.let { cancelInteractionNotification(it, pending.ask) }
                         _pendingAsk.value = null
                         activeTurnCheckpointKey()?.let {
@@ -7029,7 +7124,9 @@ class ChatViewModel : ViewModel() {
                     }
                 },
                 onFailure = { e ->
-                    answeredAskIds.remove(cardKey)
+                    answeredAskIds.remove(flightKey)
+                    if (!ownsResponse()) return@fold
+                    updateClarifyBatchCard(handler, requireNotNull(_pendingAsk.value))
                     emitError(e, context = "send_message")
                 },
             )
@@ -7054,7 +7151,6 @@ class ChatViewModel : ViewModel() {
         activeTurnCheckpointKey()?.let {
             ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), false)
         }
-        answeredAskIds.remove(pending.cardKey)
         scheduleCheckpointWrite(immediate = true)
         chatHandler?.recordCardDispatch(
             pending.messageId,
@@ -7077,7 +7173,9 @@ class ChatViewModel : ViewModel() {
             ActiveTurnKeepAliveRegistry.setWaiting(it.keepAliveKey(), false)
         }
         scheduleCheckpointWrite(immediate = true)
-        if (pending.ask.kind == GatewayAsk.Kind.APPROVAL) {
+        if (pending.ask.kind == GatewayAsk.Kind.CLARIFY) {
+            chatHandler?.recordCardDispatch(pending.messageId, pending.cardKey, HermesCardDispatch.EXPIRED_STAMP)
+        } else if (pending.ask.kind == GatewayAsk.Kind.APPROVAL) {
             chatHandler?.recordCardDispatch(pending.messageId, pending.cardKey, "deny")
         }
     }
@@ -7685,6 +7783,9 @@ class ChatViewModel : ViewModel() {
                     text = ask.ask.text,
                     choices = ask.ask.choices,
                     multiSelect = ask.ask.multiSelect,
+                    questions = ask.ask.questions,
+                    answers = ask.ask.answers,
+                    ownerId = ask.ownerId,
                     smartDenied = ask.ask.smartDenied,
                     envVar = ask.ask.envVar,
                     timeoutSeconds = ask.ask.timeoutSeconds,
@@ -7893,6 +7994,8 @@ class ChatViewModel : ViewModel() {
                 text = saved.text,
                 choices = saved.choices,
                 multiSelect = saved.multiSelect,
+                questions = saved.questions,
+                answers = saved.answers,
                 smartDenied = saved.smartDenied,
                 envVar = saved.envVar,
                 timeoutSeconds = saved.timeoutSeconds,
@@ -11846,6 +11949,7 @@ data class PendingAsk(
     /** Stored session id within [contextKey]; approvals are session-scoped upstream. */
     val sessionId: String?,
     val receivedAt: Long = System.currentTimeMillis(),
+    val ownerId: String = java.util.UUID.randomUUID().toString(),
 )
 
 /**

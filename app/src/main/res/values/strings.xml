@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="clarify_batch_progress">Question %1$d of %2$d</string>
+    <string name="clarify_batch_complete">All questions answered</string>
+    <string name="clarify_batch_expired">This request has ended</string>
+    <string name="clarify_batch_sending">Sending answer…</string>
+    <string name="clarify_batch_answered">Answered questions (%1$d)</string>
     <string name="chat_debug_title" translatable="false">Session diagnostics</string>
     <string name="chat_debug_open" translatable="false">Open session diagnostics</string>
     <string name="chat_debug_close" translatable="false">Close session diagnostics</string>

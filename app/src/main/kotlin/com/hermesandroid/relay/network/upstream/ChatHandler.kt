@@ -518,6 +518,16 @@ class ChatHandler {
         }
     }
 
+    /** Refresh only an existing local ask, preserving its dispatches and transcript position. */
+    fun updateAskCardMessage(messageId: String, card: HermesCard) {
+        _messages.update { list ->
+            list.map { message ->
+                if (message.clientOnly && message.matchesIdentity(messageId)) message.copy(cards = listOf(card))
+                else message
+            }
+        }
+    }
+
     /**
      * Edit-and-regenerate local truncation: drop [messageId] and everything
      * after it. The gateway performs the authoritative truncation via

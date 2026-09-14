@@ -17,6 +17,19 @@ SPEC.loader.exec_module(module)
 
 
 SERVER_SOURCE = '''
+def _clarify_block(sid, q, c, multi_select=False, questions=None):
+    return {"questions": [{"qid": "q0", "question": q, "choices": c, "multi_select": multi_select}]}
+
+def _respond(rid, params, key):
+    return {"question_id": params.get("question_id"), "request_id": params.get("request_id"),
+            "answers": {}, "remaining": [], "status": "expired"}
+
+def _pending_clarify_request_payload(sid):
+    return {"answers": {}, "event": "clarify.request"}
+
+def _block(event, sid, payload):
+    return {"answers": {}, "timed_out": True}
+
 def _session_info(agent, session=None):
     return {"running": bool((session or {}).get("running"))}
 
@@ -164,6 +177,13 @@ async def _handle_runs(request):
 
 
 class GatewayScenarioConformanceTest(unittest.TestCase):
+    def test_clarify_conformance_requires_question_ownership_and_replay(self) -> None:
+        results = module.audit_sources(self.root, [module.CLARIFY])
+        self.assertTrue(results[0].passed)
+        source = self.root / module.SERVER
+        source.write_text(SERVER_SOURCE.replace('"remaining"', '"other"'), encoding="utf-8")
+        self.assertFalse(module.audit_sources(self.root, [module.CLARIFY])[0].passed)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

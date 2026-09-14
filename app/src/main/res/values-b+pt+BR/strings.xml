@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="clarify_batch_progress">Pergunta %1$d de %2$d</string>
+    <string name="clarify_batch_complete">Todas as perguntas respondidas</string>
+    <string name="clarify_batch_expired">Esta solicitação terminou</string>
+    <string name="clarify_batch_sending">Enviando resposta…</string>
+    <string name="clarify_batch_answered">Perguntas respondidas (%1$d)</string>
     <string name="app_name">Hermes-Relay</string>
     <string name="app_title">Hermes-Relay</string>
     <string name="agent_interface">interface do agente</string>

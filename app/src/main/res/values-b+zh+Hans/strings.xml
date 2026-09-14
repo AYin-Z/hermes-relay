@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="clarify_batch_progress">问题 %1$d / %2$d</string>
+    <string name="clarify_batch_complete">所有问题均已回答</string>
+    <string name="clarify_batch_expired">此请求已结束</string>
+    <string name="clarify_batch_sending">正在发送回答…</string>
+    <string name="clarify_batch_answered">已回答的问题（%1$d）</string>
     <string name="app_name">Hermes-Relay</string>
     <string name="app_title">Hermes-Relay</string>
     <string name="agent_interface">代理界面</string>

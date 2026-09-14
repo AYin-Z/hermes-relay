@@ -68,6 +68,9 @@ the upstream contract identifiers it depends on.
 |---|---|
 | `initial_history_bind` | Durable, profile-scoped history is already available when the client resumes and first binds its rendered transcript |
 | `ordinary_turn` | Normal message start, deltas, completion, and persisted history |
+| `clarify_legacy` | Top-level single question and unkeyed `clarify.respond` |
+| `clarify_normalized_single` | One normalized `questions[]` entry still requires its exact `qid` |
+| `clarify_batch` | Independent qid responses, partial acknowledgement, and answered-question replay on reconnect |
 | `session_initialization_failure` | Exact-session initialization error arrives before a lazy create acknowledgement; Android must fail the pending send without waiting for the readiness deadline |
 | `subagent_child_preview` | Child activity continues after the parent terminal, followed by child completion and a separate completion wake; preview ownership remains on the same profile/session |
 | `ownership_rejection` | A submit acknowledged before the defense-in-depth ownership check emits the canonical terminal refusal; no user/model row is persisted and clients must not enter history recovery |

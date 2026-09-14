@@ -133,6 +133,13 @@ Sensitive prompts (sudo, secrets) are masked and hold-to-confirm. See
 [Markdown Rendering → Rich Cards](/features/markdown#rich-cards) for the full
 visual vocabulary.
 
+When Hermes asks several questions together, the card shows one question at a
+time and tracks your progress. Choose an option or type an **Other** answer;
+questions that allow several choices have a **Submit** button. Each confirmed
+answer stays recorded as you continue, including after a reconnect. If sending
+fails, your selections remain available to retry. When a request ends, the card
+keeps confirmed answers visible and stops accepting new ones.
+
 ## Context meter
 
 A thin strip under the chat header tracks how full the conversation's context
