@@ -36,7 +36,9 @@ SESSION_EXCLUSIVE_SUBMIT = "gateway.session_exclusive_submit"
 SUBAGENT_CHILD_WATCH = "gateway.subagent_child_watch"
 SESSION_INITIALIZATION = "gateway.session_initialization"
 API_BOUNDARY = "api.fallback_boundary"
+CLARIFY = "gateway.clarify"
 ALL_CONTRACTS = (
+    CLARIFY,
     GATEWAY_TERMINAL,
     GATEWAY_SETTLED_INFO,
     SESSION_ACTIVATE,
@@ -541,6 +543,27 @@ def load_requirements(manifest: Path | None) -> tuple[str, ...]:
     return tuple(contract for contract in ALL_CONTRACTS if contract in requested)
 
 
+def _check_clarify(server: SourceFile) -> CheckResult:
+    bridge = server.function("_clarify_block")
+    respond = server.function("_respond")
+    replay = server.function("_pending_clarify_request_payload")
+    block = server.function("_block")
+    required = (
+        {"questions", "qid", "question", "choices", "multi_select"} <= _string_constants(bridge)
+        and {"question_id", "request_id", "answers", "remaining", "expired"} <= _string_constants(respond)
+        and {"answers", "clarify.request"} <= _string_constants(replay)
+        and {"answers", "timed_out"} <= _string_constants(block)
+    )
+    return CheckResult(
+        CLARIFY, required,
+        tuple(server.evidence(node, label) for node, label in (
+            (bridge, "legacy and qid batch wire"), (respond, "per-question response"),
+            (replay, "answered-qid replay"), (block, "partial timeout"),
+        )),
+        None if required else "Clarify wire, response, replay, or partial-timeout contract changed",
+    )
+
+
 def audit_sources(root: Path, requirements: Iterable[str]) -> list[CheckResult]:
     server = SourceFile(root, SERVER)
     methods = SourceFile(root, SESSION_METHODS)
@@ -558,6 +581,7 @@ def audit_sources(root: Path, requirements: Iterable[str]) -> list[CheckResult]:
         raise ValueError("fork marker(s) found in upstream source: " + ", ".join(fork_hits))
 
     checks = {
+        CLARIFY: lambda: _check_clarify(server),
         GATEWAY_TERMINAL: lambda: _check_gateway_terminal(
             SourceFile(root, "tui_gateway/prompt_turn.py")
             if (root / "tui_gateway/prompt_turn.py").is_file() else server

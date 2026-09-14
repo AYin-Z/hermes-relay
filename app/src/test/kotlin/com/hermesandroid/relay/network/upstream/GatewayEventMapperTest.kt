@@ -16,6 +16,103 @@ import org.junit.Test
  */
 class GatewayEventMapperTest {
 
+    @Test
+    fun `acknowledgement before reclaim remains in the shared request snapshot`() {
+        val original = mapperWith(Recorder())
+        original.onEvent("clarify.request", obj("""{"request_id":"batch","questions":[
+            {"qid":"q0","question":"First?"},{"qid":"q1","question":"Second?"}]}"""))
+        val detachedSnapshot = requireNotNull(original.currentInteraction)
+        original.acknowledgeClarify("batch", "q0", "first", false)
+        val recovered = mapperWith(Recorder())
+        recovered.restoreInteraction(detachedSnapshot)
+        assertEquals(mapOf("q0" to "first"), recovered.currentInteraction?.answers)
+        recovered.onEvent("message.complete", obj("""{"text":"done"}"""))
+        recovered.acknowledgeClarify("batch", "q1", "second", false)
+        assertTrue(recovered.turnEnded)
+    }
+
+    @Test
+    fun `expired detached snapshot cannot become pending again`() {
+        val original = mapperWith(Recorder())
+        original.onEvent("clarify.request", obj("""{"request_id":"batch","questions":[{"qid":"q0","question":"First?"}]}"""))
+        val snapshot = requireNotNull(original.currentInteraction)
+        original.acknowledgeClarify("batch", "q0", "ignored", true)
+        val r = Recorder()
+        val recovered = mapperWith(r)
+        recovered.restoreInteraction(snapshot)
+        assertNull(recovered.currentInteraction)
+        assertTrue(r.interactions.isEmpty())
+        assertEquals("batch", r.interactionExpiries.single().requestId)
+    }
+
+    @Test
+    fun `forwarded acknowledgement cannot touch a newer request incarnation`() {
+        val mapper = mapperWith(Recorder())
+        val request = obj("""{"request_id":"batch","questions":[{"qid":"q0","question":"First?"}]}""")
+        mapper.onEvent("clarify.request", request)
+        val oldOwner = requireNotNull(mapper.currentInteraction).ownershipToken
+        mapper.onEvent("clarify.expire", obj("""{"request_id":"batch"}"""))
+        mapper.onEvent("clarify.request", request)
+        mapper.acknowledgeClarifyOwner("batch", "q0", "stale", true, oldOwner)
+        assertTrue(requireNotNull(mapper.currentInteraction).answers.isEmpty())
+        assertFalse(mapper.turnEnded)
+    }
+
+    @Test
+    fun `partial acknowledgement holds terminal and merges replay without resurrecting an answer`() {
+        val r = Recorder()
+        val mapper = mapperWith(r)
+        val request = obj("""{"request_id":"batch","questions":[
+            {"qid":"q0","question":"First?"},{"qid":"q1","question":"Second?"}]}""")
+        mapper.onEvent("clarify.request", request)
+        mapper.onEvent("message.complete", obj("""{"text":"done"}"""))
+        mapper.acknowledgeClarify("batch", "q0", "first", false)
+        assertFalse(mapper.turnEnded)
+        assertEquals(mapOf("q0" to "first"), mapper.currentInteraction?.answers)
+        mapper.onEvent("clarify.request", request)
+        assertEquals(mapOf("q0" to "first"), mapper.currentInteraction?.answers)
+        mapper.acknowledgeClarify("old-batch", "q1", "stale", true)
+        assertFalse(mapper.turnEnded)
+        mapper.acknowledgeClarify("batch", "q1", "second", false)
+        assertNull(mapper.currentInteraction)
+        assertTrue(mapper.turnEnded)
+    }
+
+    @Test
+    fun `batch expiry retires partial progress only for exact request`() {
+        val r = Recorder()
+        val mapper = mapperWith(r)
+        mapper.onEvent("clarify.request", obj("""{"request_id":"batch","questions":[
+            {"qid":"q0","question":"First?"},{"qid":"q1","question":"Second?"}],"answers":{"q0":"done"}}"""))
+        mapper.onEvent("clarify.expire", obj("""{"request_id":"other"}"""))
+        assertEquals("done", mapper.currentInteraction?.answers?.get("q0"))
+        mapper.onEvent("clarify.expire", obj("""{"request_id":"batch"}"""))
+        assertNull(mapper.currentInteraction)
+    }
+
+    @Test
+    fun `batch clarify preserves exact qids question order choices and replayed answers`() {
+        val ask = GatewayEventMapper.interactionRequest("clarify.request", obj("""
+            {"request_id":"batch","questions":[
+              {"qid":"choice/a","question":"Which deployment?","choices":["Canary","Immediate"],"multi_select":false},
+              {"qid":"env:b","question":"Which environments?","choices":["Stage","Production"],"multi_select":true}
+            ],"answers":{"choice/a":"Canary","foreign":"ignored"}}
+        """))!!
+        assertEquals(listOf("choice/a", "env:b"), ask.questions.map { it.qid })
+        assertEquals("Which deployment?", ask.questions[0].question)
+        assertEquals(listOf("Stage", "Production"), ask.questions[1].choices)
+        assertTrue(ask.questions[1].multiSelect)
+        assertEquals(mapOf("choice/a" to "Canary"), ask.answers)
+    }
+
+    @Test
+    fun `one entry normalized clarify keeps its qid`() {
+        val ask = GatewayEventMapper.interactionRequest("clarify.request", obj("""
+            {"request_id":"one","questions":[{"qid":"q0","question":"Which file?","choices":null}]}
+        """))!!
+        assertEquals(listOf("q0"), ask.questions.map { it.qid })
+    }
+
     private class Recorder {
         val textDeltas = mutableListOf<String>()
         val interimMessages = mutableListOf<Pair<String, Boolean>>()

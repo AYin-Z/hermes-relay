@@ -1,5 +1,11 @@
 # Hermes-Relay — Dev Log
 
+## 2026-09-13 — Android 1.17.0 and Plugin 1.11.3 release preparation
+
+Prepared Android 1.17.0 (versionCode 57) with Google Play Voice Overlay, progressive Clarify batches, chat card presentation, transport-accurate context previews and profile display names. Prepared Plugin 1.11.3 for current and legacy Dashboard WebSocket guard ownership. CLI+UI remains 0.4.0-beta.7.
+
+Reconciled the privacy policy with local chat recovery state, explicit API-only routing and public update checks. Android publication retains exact-tree signed Play preflight and policy/declaration gates. Physical Android 14-16/OEM voice-overlay testing is waived for this release and is not claimed as verification.
+
 ## 2026-09-02 — Android 1.15.1 and CLI+UI beta.7 release preparation
 
 Prepared Android 1.15.1 (versionCode 54) and CLI+UI 0.4.0-beta.7 from the integrated release tree. Android notes cover chat memory bounds, media previews, Gateway readiness, follow-up controls, and voice recovery. CLI+UI notes cover the Windows unified updater. Plugin metadata remains at 1.11.1; its only unreleased change is a documentation-comment path.

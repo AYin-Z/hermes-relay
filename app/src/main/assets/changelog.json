@@ -2,6 +2,25 @@
  "schema": 3,
  "versions": [
   {
+   "version": "1.17.0",
+   "title": "Voice over other apps and clearer conversations",
+   "date": "2026-09-13",
+   "summary": "Google Play gains optional voice controls over other apps. Clarify questions, profile names, and chat context are easier to follow without losing confirmed answers or saved conversations.",
+   "changes": [
+    {"id": "play-voice-overlay", "kind": "added", "title": "Keep voice controls over other apps", "summary": "Start Voice Overlay from Voice Focus after granting microphone, notification, and display-over-other-apps access. Stop voice from its controls or persistent notification; screen lock and permission loss end the session.", "highlight": true},
+    {"id": "clarify-batches", "kind": "fixed", "title": "Answer Clarify questions one at a time", "summary": "Multi-question requests support separate choices and custom answers. Confirmed progress survives reconnects, and failed sends keep the current answer available.", "highlight": true},
+    {"id": "chat-card-surfaces", "kind": "improved", "title": "Read cleaner chat cards", "summary": "Standalone response cards lose the extra outer bubble, assistant messages use quieter surfaces, and delivery status sits beside the timestamp."},
+    {"id": "transport-context-preview", "kind": "fixed", "title": "See which context your chat can send", "summary": "Gateway previews mark phone status and turn context as unavailable. Automatic phone-status sharing is labeled for API-only chats, where it remains supported."},
+    {"id": "profile-display-names", "kind": "fixed", "title": "Recognize profiles by their display names", "summary": "Profiles use their Hermes display names, and the resolved server default appears under its agent identity. Explicit profile choices and saved conversations are preserved.", "highlight": true}
+   ],
+   "compatibility": [
+    "Voice Overlay is now available in Google Play and sideload builds. Device Control remains sideload-only.",
+    "Standard Chat and voice use upstream Hermes without requiring Hermes-Relay Plugin. Gateway phone-status delivery and automatic Android identification remain unavailable."
+   ],
+   "playNotes": "Use optional voice controls over other apps, with clear permission setup and an immediate Stop action. Answer Clarify batches one question at a time, with progress preserved across reconnects. Enjoy cleaner chat cards, recognizable profile names, and context previews that show what your connection supports. Phone control remains sideload-only.",
+   "sections": []
+  },
+  {
    "version": "1.16.1",
    "title": "Dashboard-only cold starts recover",
    "date": "2026-09-12",

@@ -1,0 +1,38 @@
+{
+  "name": "clarify_legacy",
+  "live_session_id": "fixture-live-clarify",
+  "stored_session_id": "fixture-stored-clarify",
+  "profile": "default",
+  "contract_requirements": [
+    "gateway.clarify"
+  ],
+  "turns": [
+    {
+      "steps": [
+        {
+          "op": "event",
+          "type": "message.start"
+        },
+        {
+          "op": "clarify",
+          "payload": {
+            "request_id": "clarify-legacy",
+            "question": "Which deployment?",
+            "choices": [
+              "Canary",
+              "Immediate"
+            ],
+            "multi_select": false
+          }
+        },
+        {
+          "op": "event",
+          "type": "message.complete",
+          "payload": {
+            "text": "Clarification complete."
+          }
+        }
+      ]
+    }
+  ]
+}

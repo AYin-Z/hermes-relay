@@ -23,14 +23,9 @@ import com.hermesandroid.relay.R
 import com.hermesandroid.relay.viewmodel.ChatViewModel
 
 /**
- * Bottom-sheet audit of the exact extra context the agent is injected with on
- * the next turn — opened by tapping the chat [ContextMeterBar].
- *
- * Renders the SAME [ChatViewModel.InjectedContext] the send path builds (via
- * [ChatViewModel.previewInjectedContext] → `composeInjectedContext`), so it is
- * a faithful audit, not a re-derivation that could drift. Empty blocks show a
- * labeled note instead of vanishing, and the gateway's server-side persona is
- * explicitly called out as not-sent-from-this-device.
+ * Transport-aware context preview, opened from the chat [ContextMeterBar].
+ * Unsupported blocks are labeled rather than represented as delivered.
+ * Server-reported configuration is separate from device-supplied context.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,7 +48,7 @@ fun InjectedContextSheet(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = stringResource(R.string.injected_context_subtitle, context.transport),
+                text = stringResource(R.string.injected_context_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -71,6 +66,7 @@ fun InjectedContextSheet(
             val mediaNoRelay = stringResource(R.string.injected_context_media_no_relay)
             val relayNotSet = stringResource(R.string.injected_context_relay_not_set)
             val turnNotSet = stringResource(R.string.injected_context_turn_not_set)
+            val unsupported = stringResource(R.string.injected_context_gateway_unsupported)
 
             ContextSection(
                 title = personaTitle,
@@ -84,7 +80,7 @@ fun InjectedContextSheet(
             ContextSection(
                 title = phoneStatusTitle,
                 body = context.appContext,
-                emptyNote = phoneStatusNotSet,
+                emptyNote = if (context.perTurnContextSupported) phoneStatusNotSet else unsupported,
             )
             ContextSection(
                 title = mediaTitle,
@@ -107,7 +103,7 @@ fun InjectedContextSheet(
             ContextSection(
                 title = turnTitle,
                 body = context.interfaceContext,
-                emptyNote = turnNotSet,
+                emptyNote = if (context.perTurnContextSupported) turnNotSet else unsupported,
             )
         }
     }

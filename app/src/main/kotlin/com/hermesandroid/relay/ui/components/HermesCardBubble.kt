@@ -59,6 +59,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -145,7 +146,7 @@ fun HermesCardBubble(
     // Expiry clock for timed asks. Ticks once a second while the deadline
     // is ahead; freezes after. Keyed on the deadline so a re-used card id
     // with a fresh expiry restarts the loop.
-    val expiresAt = card.input?.expiresAtMillis
+    val expiresAt = card.input?.expiresAtMillis ?: card.clarifyBatch?.expiresAtMillis
     var nowMillis by remember(expiresAt) { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(expiresAt) {
         if (expiresAt == null) return@LaunchedEffect
@@ -252,6 +253,14 @@ fun HermesCardBubble(
                 // action button all collapse the same way.
                 val input = card.input
                 when {
+                    card.clarifyBatch != null -> {
+                        Spacer(Modifier.height(10.dp))
+                        ClarifyBatchContent(
+                            batch = card.clarifyBatch,
+                            expired = expired || alreadyChosen?.actionValue == HermesCardDispatch.EXPIRED_STAMP,
+                            onInputSubmit = onInputSubmit,
+                        )
+                    }
                     alreadyChosen != null -> {
                         Spacer(Modifier.height(10.dp))
                         val chosenAction = card.actions.firstOrNull {
@@ -408,15 +417,18 @@ private fun ChoseRow(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CardInputSlot(
+internal fun CardInputSlot(
     input: HermesCardInput,
     onSubmit: (String) -> Unit,
+    enabled: Boolean = true,
+    stackedChoices: Boolean = false,
 ) {
-    // Deliberately remember, not rememberSaveable — a typed secret must
-    // never be written into the saved-instance-state Bundle.
-    var answerText by remember { mutableStateOf("") }
+    // Batch drafts survive lazy-item disposal. Secrets never enter saved state.
+    var answerText by if (stackedChoices && !input.masked) rememberSaveable { mutableStateOf("") }
+        else remember { mutableStateOf("") }
     var reveal by remember { mutableStateOf(false) }
-    var selectedChoices by remember(input.choices) { mutableStateOf(emptyList<String>()) }
+    var selectedChoices by if (stackedChoices) rememberSaveable(input.choices) { mutableStateOf(emptyList<String>()) }
+        else remember(input.choices) { mutableStateOf(emptyList<String>()) }
     val isMultiSelect = input.multiSelect && input.choices.isNotEmpty()
 
     val showFreeText = !input.masked && (
@@ -429,7 +441,7 @@ private fun CardInputSlot(
 
     val submitFreeText = {
         val customAnswer = answerText.trim()
-        if (customAnswer.isNotEmpty()) {
+        if (enabled && customAnswer.isNotEmpty()) {
             onSubmit(
                 if (isMultiSelect) {
                     encodeClarifyMultiSelectAnswer(selectedChoices + customAnswer)
@@ -443,14 +455,13 @@ private fun CardInputSlot(
     Column(modifier = Modifier.fillMaxWidth()) {
         // Choice chips
         if (input.choices.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            val choices: @Composable () -> Unit = {
                 input.choices.forEach { choice ->
                     if (isMultiSelect) {
                         val selected = choice in selectedChoices
                         FilterChip(
+                            enabled = enabled,
+                            modifier = if (stackedChoices) Modifier.fillMaxWidth() else Modifier,
                             selected = selected,
                             onClick = {
                                 selectedChoices = if (selected) {
@@ -459,7 +470,11 @@ private fun CardInputSlot(
                                     selectedChoices + choice
                                 }
                             },
-                            label = { Text(choice, style = MaterialTheme.typography.labelMedium) },
+                            label = {
+                                Text(choice,
+                                    style = if (stackedChoices) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
+                                    modifier = if (stackedChoices) Modifier.padding(vertical = 8.dp) else Modifier)
+                            },
                             leadingIcon = if (selected) {
                                 {
                                     Icon(
@@ -477,9 +492,13 @@ private fun CardInputSlot(
                         )
                     } else {
                         AssistChip(
+                            enabled = enabled,
+                            modifier = if (stackedChoices) Modifier.fillMaxWidth() else Modifier,
                             onClick = { onSubmit(choice) },
                             label = {
-                                Text(choice, style = MaterialTheme.typography.labelMedium)
+                                Text(choice,
+                                    style = if (stackedChoices) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.labelMedium,
+                                    modifier = if (stackedChoices) Modifier.padding(vertical = 8.dp) else Modifier)
                             },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -488,6 +507,11 @@ private fun CardInputSlot(
                         )
                     }
                 }
+            }
+            if (stackedChoices) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) { choices() }
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { choices() }
             }
         }
 
@@ -534,12 +558,13 @@ private fun CardInputSlot(
                         else R.string.card_answer_placeholder,
                     ),
                     onSubmit = submitFreeText,
+                    enabled = enabled,
                     modifier = Modifier.weight(1f),
                 )
                 if (!isMultiSelect) {
                     IconButton(
                         onClick = submitFreeText,
-                        enabled = answerText.isNotBlank(),
+                        enabled = enabled && answerText.isNotBlank(),
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
@@ -559,7 +584,7 @@ private fun CardInputSlot(
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = { onSubmit(encodeClarifyMultiSelectAnswer(answers)) },
-                enabled = answers.isNotEmpty(),
+                enabled = enabled && answers.isNotEmpty(),
             ) {
                 Text(
                     stringResource(R.string.card_submit),
@@ -615,6 +640,7 @@ private fun InlineAnswerField(
     placeholder: String,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val shape = appearanceRoundedCornerShape(16.dp)
     Box(
@@ -632,6 +658,7 @@ private fun InlineAnswerField(
             )
         }
         BasicTextField(
+            enabled = enabled,
             value = value,
             onValueChange = onValueChange,
             textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -639,7 +666,7 @@ private fun InlineAnswerField(
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { onSubmit() }),
+            keyboardActions = KeyboardActions(onSend = { onSubmit() }, onDone = { onSubmit() }),
             maxLines = 3,
             modifier = Modifier
                 .fillMaxWidth()

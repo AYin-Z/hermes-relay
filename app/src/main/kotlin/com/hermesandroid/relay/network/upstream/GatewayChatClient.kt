@@ -1586,6 +1586,7 @@ class GatewayChatClient(
                 claimedBackground?.pendingAsk?.let { ask ->
                     boundTurn.restoreInteraction(ask)
                 }
+                boundTurn.restorePendingClarify(response)
                 boundTurn.armWatchdog()
             } else if (queued != null) {
                 synchronized(recoveryEventLock) { recoveryEvents = null }
@@ -1746,17 +1747,39 @@ class GatewayChatClient(
         )
 
     /** Answer a [GatewayAsk.Kind.CLARIFY] ask. */
-    suspend fun respondClarify(requestId: String, answer: String): Result<GatewayAskResponse> {
+    suspend fun respondClarify(
+        requestId: String,
+        answer: String,
+        questionId: String? = null,
+    ): Result<GatewayAskResponse> {
         val respondingTurn = activeTurn
+        if (questionId != null) {
+            val ask = respondingTurn?.pendingInteraction
+            // A lost acknowledgement is ambiguous until activation replays server progress.
+            // Never overwrite an accepted answer while reconnect is still reconciling it.
+            if (rejoinInProgress || ask?.kind != GatewayAsk.Kind.CLARIFY || ask.requestId != requestId ||
+                ask.questions.none { it.qid == questionId } || ask.ownershipToken.retired.get() ||
+                questionId in ask.ownershipToken.answers.get()
+            ) return Result.failure(GatewayRpcException("Clarification is not ready for this question"))
+        }
+        val generation = respondingTurn?.interactionGeneration
+        val ownershipToken = respondingTurn?.pendingInteraction?.ownershipToken
         return rpc(
             "clarify.respond",
             buildJsonObject {
                 put("request_id", requestId)
                 put("answer", answer)
+                questionId?.let { put("question_id", it) }
             },
         ).map {
             it.gatewayAskResponse().also {
-                respondingTurn?.acknowledgeInteraction(GatewayAskExpiry(GatewayAsk.Kind.CLARIFY, requestId))
+                if (generation != null) {
+                    respondingTurn.acknowledgeClarify(requestId, questionId, answer, it == GatewayAskResponse.EXPIRED, generation)
+                }
+                val currentTurn = activeTurn
+                if (ownershipToken != null && currentTurn !== respondingTurn) {
+                    currentTurn?.acknowledgeClarifyOwner(requestId, questionId, answer, it == GatewayAskResponse.EXPIRED, ownershipToken)
+                }
             }
         }
     }
@@ -1913,6 +1936,7 @@ class GatewayChatClient(
                     model = row.stringField("model").orEmpty(),
                     provider = row.stringField("provider").orEmpty(),
                     description = row.stringField("description").orEmpty(),
+                    displayName = row.stringField("display_name").orEmpty(),
                     skillCount = (row["skill_count"] as? JsonPrimitive)?.intOrNull ?: 0,
                     isDefault = (row["is_default"] as? JsonPrimitive)?.booleanOrNull ?: false,
                     hasAvatar = (row["has_avatar"] as? JsonPrimitive)?.booleanOrNull ?: false,
@@ -3853,7 +3877,10 @@ class GatewayChatClient(
             val interactionRequest = GatewayEventMapper.interactionRequest(type, payload)
             if (interactionRequest != null) {
                 val previous = backgroundTurn.pendingAsk
-                backgroundTurn.pendingAsk = interactionRequest
+                backgroundTurn.pendingAsk = if (previous?.kind == interactionRequest.kind &&
+                    previous.requestId == interactionRequest.requestId && interactionRequest.questions.isNotEmpty()
+                ) interactionRequest.withAnswers(previous.answers + interactionRequest.answers, previous)
+                else interactionRequest
                 if (previous?.kind != interactionRequest.kind ||
                     previous.requestId != interactionRequest.requestId
                 ) {
@@ -3880,6 +3907,7 @@ class GatewayChatClient(
             // be replayed or buffered. Only an authoritative expiry retires a
             // detached ask; an explicit response is retired by its foreground VM.
             if (explicitlyExpired) {
+                pendingAsk.ownershipToken.retired.set(true)
                 backgroundTurn.pendingAsk = null
                 callbackDispatcher {
                     backgroundInteractionListener?.invoke(
@@ -3996,6 +4024,9 @@ class GatewayChatClient(
                 }
             }
             return
+        }
+        if (type == "session.info" && eventSessionId != null && eventSessionId == liveSessionId) {
+            payload?.let(turn::restorePendingClarify)
         }
         turn.onEvent(type, payload)
         if (turn.ended) {
@@ -4203,6 +4234,7 @@ class GatewayChatClient(
                         activated.isSuccess -> {
                             activated.getOrNull()?.let { result ->
                                 applySessionResultInfo(result)
+                                turn.restorePendingClarify(result)
                                 turn.settleFromAuthoritativeSessionState(
                                     running = result.booleanField("running"),
                                     source = "session.activate",
@@ -4504,6 +4536,19 @@ class GatewayChatClient(
         }
         fun acknowledgeInteraction(expiry: GatewayAskExpiry) {
             mapper.acknowledgeInteraction(expiry)
+        }
+        val interactionGeneration: Long get() = mapper.interactionGeneration
+        fun acknowledgeClarify(requestId: String, questionId: String?, answer: String, expired: Boolean, generation: Long) {
+            mapper.acknowledgeClarify(requestId, questionId, answer, expired, generation)
+        }
+        fun acknowledgeClarifyOwner(requestId: String, questionId: String?, answer: String, expired: Boolean, owner: GatewayAskOwnership) {
+            mapper.acknowledgeClarifyOwner(requestId, questionId, answer, expired, owner)
+        }
+        fun restorePendingClarify(snapshot: JsonObject) {
+            val payload = snapshot["pending_clarify"] as? JsonObject
+                ?: (snapshot["info"] as? JsonObject)?.get("pending_clarify") as? JsonObject
+                ?: return
+            GatewayEventMapper.interactionRequest("clarify.request", payload)?.let(mapper::restoreInteraction)
         }
         private val deferredEventLock = Any()
         private val deferredEvents = mutableListOf<Pair<String, JsonObject?>>()
@@ -5268,6 +5313,7 @@ private fun parseBotRosterEntry(row: JsonObject): BotRosterEntry? {
             model = row.stringField("model").orEmpty(),
             provider = row.stringField("provider").orEmpty(),
             description = row.stringField("description")?.take(512).orEmpty(),
+            displayName = row.stringField("display_name").orEmpty(),
             skillCount = (row["skill_count"] as? JsonPrimitive)?.intOrNull ?: 0,
             isDefault = (row["is_default"] as? JsonPrimitive)?.booleanOrNull ?: false,
             hasAvatar = (row["has_avatar"] as? JsonPrimitive)?.booleanOrNull ?: false,

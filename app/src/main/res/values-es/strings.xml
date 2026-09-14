@@ -1,5 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="clarify_batch_progress">Pregunta %1$d de %2$d</string>
+    <string name="clarify_batch_complete">Todas las preguntas respondidas</string>
+    <string name="clarify_batch_expired">Esta solicitud ha finalizado</string>
+    <string name="clarify_batch_sending">Enviando respuesta…</string>
+    <string name="clarify_batch_answered">Preguntas respondidas (%1$d)</string>
     <string name="app_name">Hermes-Relay</string>
     <string name="app_title">Hermes-Relay</string>
     <string name="agent_interface">interfaz del agente</string>
@@ -724,7 +729,7 @@
     <string name="chat_settings_notify_when_finishes">Alertas de chat en segundo plano</string>
     <string name="chat_settings_notify_when_finishes_desc">Notificar cuando Hermes necesite información o termine en segundo plano</string>
     <string name="chat_settings_share_phone_status">Compartir el estado del teléfono con el agente</string>
-    <string name="chat_settings_share_phone_status_desc">Incluya un breve mensaje del sistema sobre la aplicación y el teléfono en cada turno de chat.</string>
+    <string name="chat_settings_share_phone_status_desc">Incluir contexto de la app y el teléfono en chats solo por API. No se envía en los chats estándar de Gateway.</string>
     <string name="chat_settings_bridge_permissions">Bridge + permisos</string>
     <string name="chat_settings_bridge_permissions_desc">Si se concede accesibilidad, captura de pantalla, superposición o notificaciones</string>
     <string name="chat_settings_foreground_app">Aplicación en primer plano</string>
@@ -733,7 +738,7 @@
     <string name="chat_settings_battery_level_desc">Porcentaje de batería actual. Desactivado de forma predeterminada.</string>
     <string name="chat_settings_safety_rails">Barandillas de seguridad</string>
     <string name="chat_settings_safety_rails_desc">Recuento de listas de bloqueo, recuento de verbos destructivos y temporizador de desactivación automática</string>
-    <string name="chat_settings_preview">Avance</string>
+    <string name="chat_settings_preview">Ejemplo de chat solo por API</string>
     <string name="chat_settings_no_system_message">(no se enviará ningún mensaje del sistema)</string>
     <string name="chat_settings_parse_tool_annotations">Anotaciones de la herramienta de análisis</string>
     <string name="chat_settings_experimental">Experimental</string>
@@ -3028,10 +3033,10 @@
     <string name="injected_context_phone_status_title">Estado del teléfono</string>
     <string name="injected_context_relay_not_set">Ningún relay configurado</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">Contexto enviado con el siguiente mensaje.</string>
+    <string name="injected_context_subtitle">Vista previa de este chat. El contexto del servidor se configura por separado.</string>
     <string name="injected_context_title">Contexto inyectado</string>
     <string name="injected_context_turn_not_set">No establecido</string>
-    <string name="injected_context_turn_title">Modo de detección de giro</string>
+    <string name="injected_context_turn_title">Contexto del turno</string>
     <string name="model_picker_cd_clear">Borrar</string>
     <string name="model_picker_count">Modelos %d</string>
     <string name="power_feature_back_desc">Atrás</string>
@@ -4287,4 +4292,13 @@
     <string name="tool_progress_status_dispatched">Enviado</string>
     <string name="chat_activity_history_notice">Actividad registrada. No se conservan las actualizaciones de progreso; el historial disponible de los subagentes se puede abrir en modo de solo lectura.</string>
     <string name="chat_activity_output_unavailable">La salida ya no está disponible. Esta entrada conserva el estado registrado del proceso.</string>
+    <string name="profile_follow_server_default">Seguir el perfil predeterminado del servidor</string>
+
+    <!-- User-started voice overlay, independent of Device Control. -->
+    <string name="voice_overlay_setup_title">Voz sobre otras apps</string>
+    <string name="voice_overlay_setup_body">Mantén los controles de voz visibles sobre otra app. El audio se envía a tu servidor Hermes configurado. Esto no permite leer la pantalla ni controlar el teléfono. Permite mostrar sobre otras apps en los ajustes de Android y vuelve aquí. Se requiere una notificación del micrófono con Detener voz. Cerrar la ventana o bloquear la pantalla termina la sesión de voz.</string>
+    <string name="voice_overlay_setup_start">Iniciar ventana de voz</string>
+    <string name="voice_overlay_settings_hint">Opcional en ambas versiones. Abre el enfoque de voz en Chat y elige Superposición. Los permisos por sí solos nunca inician la escucha.</string>
+    <string name="voice_overlay_reset_position">Restablecer posición</string>
+    <string name="injected_context_gateway_unsupported">No se envía en el chat de Gateway. Esta conexión no admite contexto adicional por turno.</string>
 </resources>

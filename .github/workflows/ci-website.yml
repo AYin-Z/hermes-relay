@@ -8,6 +8,15 @@ on:
       - "assets/screenshots/03_voice.png"
       - "assets/screenshots/06_manage.png"
       - "docs/media/screenshots.json"
+      - "docs/media/desktop-ui-screenshots.json"
+      - "assets/screenshots/desktop-ui/**"
+      - "desktop/tray/ui/**"
+      - "desktop/tray/scripts/*.mjs"
+      - "desktop/tray/package-lock.json"
+      - "desktop/tray/index.html"
+      - "desktop/tray/icons/icon-256.png"
+      - "desktop/src/endpoint.ts"
+      - "desktop/src/transportSecurity.ts"
       - ".github/workflows/ci-website.yml"
   push:
     branches: [main, dev]
@@ -17,6 +26,15 @@ on:
       - "assets/screenshots/03_voice.png"
       - "assets/screenshots/06_manage.png"
       - "docs/media/screenshots.json"
+      - "docs/media/desktop-ui-screenshots.json"
+      - "assets/screenshots/desktop-ui/**"
+      - "desktop/tray/ui/**"
+      - "desktop/tray/scripts/*.mjs"
+      - "desktop/tray/package-lock.json"
+      - "desktop/tray/index.html"
+      - "desktop/tray/icons/icon-256.png"
+      - "desktop/src/endpoint.ts"
+      - "desktop/src/transportSecurity.ts"
       - ".github/workflows/ci-website.yml"
 
 permissions:

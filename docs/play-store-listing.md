@@ -91,9 +91,9 @@ This app is a community project and is not affiliated with or endorsed by NousRe
 Paste into Play Console → **What's new** (≤500 characters):
 
 ```
-v1.16.1 - Dashboard-only cold starts recover
+v1.17.0 - Voice over other apps and clearer conversations
 
-Dashboard-only connections now prepare the selected profile before Gateway readiness, fixing a remaining cold-start path that could stay on waking or waiting for Gateway until the app resumed or its network route changed.
+Use optional voice controls over other apps, with clear permission setup and an immediate Stop action. Answer Clarify batches one question at a time, with progress preserved across reconnects. Enjoy cleaner chat cards, recognizable profile names, and context previews that show what your connection supports. Phone control remains sideload-only.
 ```
 ## Category
 
@@ -197,6 +197,8 @@ entry points in its description and demonstration:
   and Stop action, then opens the voice overlay, backgrounds Hermes, and ends
   the session from the overlay or notification.
 
+The Play build declares `SYSTEM_ALERT_WINDOW` only for explicitly user-started Voice Overlay. It never enables Device Control. Overlay permission and notification refusal retain in-app voice.
+
 The Play build does **not** declare `FOREGROUND_SERVICE_MEDIA_PROJECTION` or the Device Control accessibility/bridge services — those are sideload-only.
 
 ### Data safety
@@ -213,3 +215,23 @@ questions against this flow before the next Play submission.
 - `POST_NOTIFICATIONS` — chat input, turn-complete, and keep-alive notifications, requested on API 33+.
 - `CAMERA` — QR pairing / attachments, requested at use.
 - Notification listener (companion) — user-enabled in system settings.
+
+### Voice Overlay review before production
+
+Update the microphone FGS declaration and demonstrate the actual Google Play
+package on an explicitly approved test track. Sideload recordings do not certify
+Play. Show permission refusal, notification Stop, screen-lock termination and
+repeated turns after switching apps. Do not use the Production-draft stable
+preflight as an experiment. Upload success is not policy approval.
+
+Reconcile Data Safety for audio, messages, attachments, notification content and
+Assistant text/screenshots, including recipients and retention. No hosted backend
+or analytics does not itself establish "no data collected." Record any applicable
+collection/sharing exceptions against Google's definitions. Confirm the listing,
+canonical privacy page and legacy page describe the reviewed behavior. Console
+updates and test-track submission require release authorization.
+
+Official sources checked September 12, 2026: [special access](https://developer.android.com/training/permissions/requesting-special),
+[FGS declarations](https://support.google.com/googleplay/android-developer/answer/13392821),
+[Data Safety](https://support.google.com/googleplay/android-developer/answer/10787469),
+and [Accessibility automation](https://support.google.com/googleplay/android-developer/answer/10964491).

@@ -55,6 +55,10 @@ class GatewayFixture:
         self._connection_sequence = 0
         self._tasks: set[asyncio.Task[None]] = set()
         self._sockets: set[web.WebSocketResponse] = set()
+        self._clarify: dict[str, Any] | None = None
+        self._clarify_answers: dict[str, str] = {}
+        self._clarify_done = asyncio.Event()
+        self._clarify_owner: tuple[web.WebSocketResponse, int] | None = None
 
     @property
     def running(self) -> bool:
@@ -135,16 +139,40 @@ class GatewayFixture:
                 await self._rpc_error(socket, request_id, 4040, "Stored session not found")
                 return
             result = self._session_snapshot(include_stored=True)
+            if self._clarify is not None:
+                self._clarify_owner = socket, connection
         elif method == "session.activate":
             requested = params.get("session_id")
             if requested != self.scenario.live_session_id:
                 await self._rpc_error(socket, request_id, 4041, "Live session not found")
                 return
             result = self._session_snapshot(include_stored=True)
+            if self._clarify is not None:
+                self._clarify_owner = socket, connection
         elif method == "prompt.submit":
             await self._rpc_result(socket, request_id, {"ok": True})
             await self._submit(socket, connection)
             return
+        elif method == "clarify.respond":
+            pending = self._clarify
+            if pending is None or params.get("request_id") != pending["request_id"]:
+                result = {"status": "expired"}
+            else:
+                qids = [q["qid"] for q in pending.get("questions", [])]
+                qid = params.get("question_id")
+                if qids and qid:
+                    if qid not in qids:
+                        await self._rpc_error(socket, request_id, 4002, "unknown question_id")
+                        return
+                    self._clarify_answers[qid] = params.get("answer", "")
+                    remaining = [q for q in qids if q not in self._clarify_answers]
+                    result = {"status": "ok", "remaining": remaining}
+                    if not remaining:
+                        self._clarify_done.set()
+                else:
+                    # Upstream's no-qid batch response cancels the whole request.
+                    self._clarify_done.set()
+                    result = {"status": "ok"}
         elif method == "session.interrupt":
             was_active = self._turn_active
             tasks = tuple(self._tasks)
@@ -179,6 +207,9 @@ class GatewayFixture:
         }
         if include_stored:
             snapshot["stored_session_id"] = self.scenario.stored_session_id
+        if self._clarify is not None:
+            snapshot["pending_clarify"] = dict(self._clarify, answers=dict(self._clarify_answers))
+            snapshot["info"]["pending_clarify"] = snapshot["pending_clarify"]
         if self._running:
             snapshot["inflight"] = {"user": "fixture turn", "assistant": "", "streaming": True}
         return snapshot
@@ -218,6 +249,18 @@ class GatewayFixture:
                 operation = step["op"]
                 if operation == "sleep":
                     await asyncio.sleep(step["milliseconds"] / 1_000)
+                elif operation == "clarify":
+                    self._clarify = dict(step["payload"])
+                    self._clarify_answers = {}
+                    self._clarify_owner = socket, connection
+                    self._clarify_done.clear()
+                    await self._send_event(
+                        socket, connection, "clarify.request", self._clarify,
+                        self.scenario.live_session_id,
+                    )
+                    await self._clarify_done.wait()
+                    socket, connection = self._clarify_owner
+                    self._clarify = None
                 elif operation == "set_running":
                     self._running = bool(step["value"])
                     self.evidence.add(
@@ -245,6 +288,8 @@ class GatewayFixture:
                     )
                     self.evidence.add("fault", connection=connection, outcome="socket_gap")
         finally:
+            self._clarify = None
+            self._clarify_owner = None
             self._turn_active = False
             if self._running:
                 self._running = False
