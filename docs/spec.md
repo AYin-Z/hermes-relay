@@ -597,6 +597,8 @@ Bottom navigation bar with 4 tabs:
 ```
 
 ### Chat Tab
+
+- **Context preview** — the Injected context sheet describes the bound chat transport, not a delivery receipt. Standard Gateway chat has no general per-turn system-context slot: phone status, the Android client preamble, media hints, and interface-context blocks are omitted. Phone status and turn context show an explicit unsupported note. API-only chats retain the opted-in context and sharing controls; the Settings example is labeled API-only. Gateway persona and optional Relay-reported configuration remain separately server-owned. No context is prepended to user text or written into the personality slot to bypass this boundary.
 - **Top bar and Profile Shelf (three-layer agent model).** Layout from left to right:
   1. **Connection chip** — tap to open `ConnectionSwitcherSheet` (all paired servers + health indicator). Auto-hidden when you only have one Connection. See `docs/decisions.md` §19.
   2. **Agent avatar/name region** — tap to expand or collapse the Profile Shelf immediately below the app bar. With only one visible effective identity, the shelf stays hidden and the same tap opens Agent Passport.

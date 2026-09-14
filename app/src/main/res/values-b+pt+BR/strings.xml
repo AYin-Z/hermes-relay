@@ -762,7 +762,7 @@
     <string name="chat_settings_notify_when_finishes">Alertas de chat em segundo plano</string>
     <string name="chat_settings_notify_when_finishes_desc">Notifique quando o Hermes precisar de uma resposta ou terminar em segundo plano</string>
     <string name="chat_settings_share_phone_status">Compartilhar o status do celular com o agente</string>
-    <string name="chat_settings_share_phone_status_desc">Inclua uma breve mensagem do sistema sobre o app e o celular em cada turno do chat</string>
+    <string name="chat_settings_share_phone_status_desc">Incluir contexto do app e do telefone em chats apenas por API. Não é enviado nos chats padrão do Gateway.</string>
     <string name="chat_settings_bridge_permissions">Bridge + permissões</string>
     <string name="chat_settings_bridge_permissions_desc">Se acessibilidade, captura de tela, sobreposição e notificações foram concedidas</string>
     <string name="chat_settings_foreground_app">App em primeiro plano</string>
@@ -771,7 +771,7 @@
     <string name="chat_settings_battery_level_desc">Porcentagem atual da bateria. Desativado por padrão.</string>
     <string name="chat_settings_safety_rails">Proteções de segurança</string>
     <string name="chat_settings_safety_rails_desc">Quantidade de itens bloqueados, quantidade de verbos destrutivos e temporizador de desativação automática</string>
-    <string name="chat_settings_preview">Prévia</string>
+    <string name="chat_settings_preview">Exemplo de chat apenas por API</string>
     <string name="chat_settings_no_system_message">(nenhuma mensagem do sistema será enviada)</string>
     <string name="chat_settings_parse_tool_annotations">Analisar anotações de ferramentas</string>
     <string name="chat_settings_experimental">Experimental</string>
@@ -3201,10 +3201,10 @@
     <string name="injected_context_phone_status_title">Status do celular</string>
     <string name="injected_context_relay_not_set">Nenhum relay configurado</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">Contexto enviado com a próxima mensagem</string>
+    <string name="injected_context_subtitle">Prévia deste chat. O contexto do servidor é configurado separadamente.</string>
     <string name="injected_context_title">Contexto injetado</string>
     <string name="injected_context_turn_not_set">Não definido</string>
-    <string name="injected_context_turn_title">Modo de detecção de turno</string>
+    <string name="injected_context_turn_title">Contexto do turno</string>
     <string name="model_picker_cd_clear">Limpar</string>
     <string name="model_picker_count">%d modelos</string>
     <string name="power_feature_back_desc">Voltar</string>
@@ -4452,4 +4452,5 @@
     <string name="voice_overlay_setup_start">Iniciar sobreposição de voz</string>
     <string name="voice_overlay_settings_hint">Opcional nas duas versões. Abra o foco de voz no Chat e escolha Sobreposição. As permissões sozinhas nunca iniciam a escuta.</string>
     <string name="voice_overlay_reset_position">Redefinir posição</string>
+    <string name="injected_context_gateway_unsupported">Não é enviado no chat do Gateway. Esta conexão não oferece suporte a contexto adicional por turno.</string>
 </resources>

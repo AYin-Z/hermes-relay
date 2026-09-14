@@ -804,7 +804,7 @@
     <string name="chat_settings_notify_when_finishes">Chat-Benachrichtigungen im Hintergrund</string>
     <string name="chat_settings_notify_when_finishes_desc">Benachrichtigen, wenn Hermes Eingaben benötigt oder im Hintergrund fertig wird</string>
     <string name="chat_settings_share_phone_status">Smartphone-Status mit Agent teilen</string>
-    <string name="chat_settings_share_phone_status_desc">Bei jedem Chatdurchlauf eine kurze Systemnachricht über App und Smartphone einfügen</string>
+    <string name="chat_settings_share_phone_status_desc">App- und Smartphone-Kontext in reinen API-Chats mitsenden. Wird in Standard-Gateway-Chats nicht gesendet.</string>
     <string name="chat_settings_bridge_permissions">Bridge + Berechtigungen</string>
     <string name="chat_settings_bridge_permissions_desc">Ob Bedienungshilfe, Bildschirmaufnahme, Overlay und Benachrichtigungen erlaubt sind</string>
     <string name="chat_settings_foreground_app">App im Vordergrund</string>
@@ -813,7 +813,7 @@
     <string name="chat_settings_battery_level_desc">Aktueller Akkustand in Prozent. Standardmäßig aus.</string>
     <string name="chat_settings_safety_rails">Schutzmechanismen</string>
     <string name="chat_settings_safety_rails_desc">Anzahl gesperrter Einträge und destruktiver Verben sowie Timer zur automatischen Deaktivierung</string>
-    <string name="chat_settings_preview">Vorschau</string>
+    <string name="chat_settings_preview">Beispiel für einen reinen API-Chat</string>
     <string name="chat_settings_no_system_message">(es wird keine Systemnachricht gesendet)</string>
     <string name="chat_settings_parse_tool_annotations">Werkzeughinweise auswerten</string>
     <string name="chat_settings_experimental">Experimentell</string>
@@ -3369,10 +3369,10 @@
     <string name="injected_context_phone_status_title">Smartphone-Status</string>
     <string name="injected_context_relay_not_set">Kein Relay konfiguriert</string>
     <string name="injected_context_relay_title">Relay</string>
-    <string name="injected_context_subtitle">Kontext, der mit der nächsten Nachricht gesendet wird</string>
+    <string name="injected_context_subtitle">Vorschau für diesen Chat. Serverseitiger Kontext wird separat konfiguriert.</string>
     <string name="injected_context_title">Eingefügter Kontext</string>
     <string name="injected_context_turn_not_set">Nicht festgelegt</string>
-    <string name="injected_context_turn_title">Modus zur Durchlauferkennung</string>
+    <string name="injected_context_turn_title">Nachrichtenkontext</string>
     <string name="model_picker_cd_clear">Leeren</string>
     <string name="model_picker_count">%d Modelle</string>
     <string name="power_feature_back_desc">Zurück</string>
@@ -4609,4 +4609,5 @@
     <string name="voice_overlay_setup_start">Sprach-Overlay starten</string>
     <string name="voice_overlay_settings_hint">In beiden Versionen optional. Öffne den Sprachfokus im Chat und wähle Overlay. Berechtigungen allein starten kein Zuhören.</string>
     <string name="voice_overlay_reset_position">Position zurücksetzen</string>
+    <string name="injected_context_gateway_unsupported">Wird im Gateway-Chat nicht gesendet. Diese Verbindung unterstützt keinen zusätzlichen Kontext pro Nachricht.</string>
 </resources>

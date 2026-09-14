@@ -9770,8 +9770,8 @@ class ChatViewModel : ViewModel() {
      *  0. **Gateway transport** — the server owns the persona end-to-end: the
      *     session is bound to the selected profile (SOUL applied server-side) and
      *     the personality overlay rides `config.set`/`ephemeral_system_prompt`.
-     *     The phone sends NO persona/profile prompt (only the phone-status block)
-     *     so it can't double-apply. Cases 1–3 are the SSE-fallback rules.
+     *     The phone sends no per-turn system context on Gateway.
+     *     Cases 1–3 are the explicit API-only transport rules.
      *  1. **Selected profile with a non-blank [Profile.systemMessage]** —
      *     profile wins outright. Profile is a richer, newer concept than
      *     personality: it bundles model + persona (from the profile's
@@ -9786,15 +9786,12 @@ class ChatViewModel : ViewModel() {
      *     configured default.
      *
      * The phone-status [appContextSettings] block is appended to whichever
-     * of the above wins (or sent alone in case 3), so the LLM always sees
-     * phone state regardless of persona source.
+     * of the API-only cases above wins (or sent alone in case 3).
      */
     /**
-     * The exact `system_message` (`ephemeral_system_prompt`) injected for a
-     * turn, split into labeled blocks. Single source of truth shared by
-     * [startStream] (which sends [combinedSystemMessage]) and
-     * [previewInjectedContext] (which renders it in the chat audit sheet) so
-     * the preview can never drift from what is actually sent.
+     * Context prepared for the selected transport, split into labeled blocks.
+     * This is a preview, not a delivery receipt or the complete agent prompt.
+     * Gateway has no general per-turn system-context slot.
      */
     data class InjectedContext(
         val personaPrompt: String?,
@@ -9825,6 +9822,8 @@ class ChatViewModel : ViewModel() {
          * audit UI labels that block "added server-side".
          */
         val personaOwnedServerSide: Boolean,
+        /** False on Gateway; unsupported blocks are excluded from the payload and preview. */
+        val perTurnContextSupported: Boolean,
     )
 
     /**
@@ -9860,11 +9859,14 @@ class ChatViewModel : ViewModel() {
         } else {
             _sseToolNames.value
         }
-        val appContextRaw = buildPromptBlock(
-            settings = appContextSettings,
-            snapshot = capturePhoneSnapshot(),
-            availableTools = availableTools,
-        )
+        val appContextRaw = if (!gateway && appContextSettings.master) {
+            buildPromptBlock(
+                settings = appContextSettings,
+                snapshot = capturePhoneSnapshot(),
+                availableTools = availableTools,
+            )
+        } else null
+        val interfaceContext = interfaceContextPrompt?.takeIf { !gateway && it.isNotBlank() }
         // Gateway has no per-turn system slot. SSE carries the standard
         // Dashboard route first, then the optional Relay enhancement.
         val upstreamMediaAvailable = dashboardMediaClientProvider?.invoke() != null
@@ -9876,25 +9878,26 @@ class ChatViewModel : ViewModel() {
         // block (a stable environment fact, like phone status) and before the
         // per-turn interface context. The per-block fields below null out blanks
         // only for display.
-        val combined = listOfNotNull(personaPrompt, appContextRaw, mediaCapability, interfaceContextPrompt)
+        val combined = listOfNotNull(personaPrompt, appContextRaw, mediaCapability, interfaceContext)
             .joinToString("\n\n")
             .ifBlank { null }
         return InjectedContext(
             personaPrompt = personaPrompt,
             appContext = appContextRaw?.takeIf { it.isNotBlank() },
-            interfaceContext = interfaceContextPrompt?.takeIf { it.isNotBlank() },
+            interfaceContext = interfaceContext,
             mediaCapability = mediaCapability,
             relayServerBlocks = relayServerBlocks,
             relayMediaAvailable = relayMediaAvailable,
             combinedSystemMessage = combined,
             transport = streamingEndpoint,
             personaOwnedServerSide = gateway,
+            perTurnContextSupported = !gateway,
         )
     }
 
     /**
-     * Live audit snapshot of what the agent will be injected with on the next
-     * turn — rendered by the chat context sheet. Per-turn voice context is null
+     * Preview of context supported by the selected transport, plus separately
+     * reported Relay configuration. Per-turn voice context is null
      * here (it's set only on a spoken turn); the UI notes that.
      */
     fun previewInjectedContext(): InjectedContext {

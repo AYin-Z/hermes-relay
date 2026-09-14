@@ -1737,6 +1737,24 @@ class ChatViewModelGatewayInboundTurnTest {
     }
 
     @Test
+    fun injectedContextPreviewMatchesBareGatewayPayload() {
+        viewModel.appContextSettings = com.hermesandroid.relay.util.AppContextSettings(
+            master = true, battery = true, currentApp = true,
+        )
+        val preview = viewModel.previewInjectedContext()
+        assertFalse(preview.perTurnContextSupported)
+        assertNull(preview.combinedSystemMessage)
+
+        viewModel.sendMessage("Keep this message unchanged")
+        gatewayHarness.awaitRpc("prompt.submit")
+        val submitted = gatewayHarness.rpcLog.last { it.first == "prompt.submit" }.second
+        assertEquals(JsonPrimitive("Keep this message unchanged"), submitted["text"])
+        assertFalse(submitted.containsKey("system_message"))
+        assertFalse(submitted.containsKey("surface"))
+        assertEquals(0, apiCompletionsRequestCount.get())
+    }
+
+    @Test
     fun dashboardOnlyConnectionCanSendWithoutApiClient() {
         viewModel.updateGatewayClient(null)
         gatewayClient.clearSession()
