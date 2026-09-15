@@ -2000,7 +2000,7 @@ class ChatViewModelGatewayInboundTurnTest {
             })
         }
         viewModel.setDashboardConfigLoader { Result.success(config) }
-        shadowOf(Looper.getMainLooper()).idle()
+        awaitCondition { viewModel.personalityNames.value == listOf("private-a") }
         assertEquals(listOf("private-a"), viewModel.personalityNames.value)
 
         viewModel.resetConnectionCatalogs()
@@ -2548,6 +2548,12 @@ class ChatViewModelGatewayInboundTurnTest {
         gatewayHarness.awaitRpc("approval.respond")
         awaitCondition { !handler.isStreaming.value }
         awaitCondition { checkpointStore.checkpoint == null }
+        // The RPC log records request receipt, before its acknowledgement is
+        // dispatched back to Main. Checkpoint retirement is independent too.
+        awaitCondition {
+            handler.messages.value.singleOrNull { it.id == "ask-approval-1" }
+                ?.cardDispatches?.isNotEmpty() == true
+        }
         assertEquals(
             "once",
             handler.messages.value.single { it.id == "ask-approval-1" }
