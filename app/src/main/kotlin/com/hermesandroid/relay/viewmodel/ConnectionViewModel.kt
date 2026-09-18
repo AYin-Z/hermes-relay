@@ -2870,12 +2870,16 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
         // this Home-Assistant-class persistent-connection use case). Mirrors
         // BridgeViewModel's masterToggle → BridgeForegroundService driver.
         viewModelScope.launch {
-            combine(gatewayKeepAlive, ActiveTurnKeepAliveRegistry.snapshot) { persistent, turns ->
-                persistent to turns
-            }.distinctUntilChanged().collect { (persistent, turns) ->
+            combine(
+                gatewayKeepAlive,
+                ActiveTurnKeepAliveRegistry.snapshot,
+                AppForegroundTracker.isForeground,
+            ) { persistent, turns, foreground ->
+                Triple(persistent, turns, foreground)
+            }.distinctUntilChanged().collect { (persistent, turns, foreground) ->
                 upstreamTransport.applyGatewayKeepAlive(persistent || turns.required)
                 val ctx = getApplication<Application>()
-                runCatching { GatewayKeepAliveService.update(ctx, persistent, turns) }
+                GatewayKeepAliveService.update(ctx, persistent, turns, foreground)
             }
         }
     }
