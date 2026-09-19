@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Desktop tray connection and screenshot-evidence windows can dismiss themselves again; the tray capability now covers all four of its windows. (#606)
 - Android safely settles Gateway foreground-service starts before stopping local retention, preventing the startup/shutdown race reported in #603. Turning off always-on connectivity preserves active turns.
 - Android Standard Voice speaks live background completions in its active conversation after the original reply finishes. Stop and conversation changes discard pending speech. (#545)
 
