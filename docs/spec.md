@@ -126,6 +126,22 @@ authentication, unsupported-protocol, and access-policy failures stop automatic
 retry. After a socket has reached Ready once, ordinary network loss remains a
 non-terminal reconnect episode while Chat is visible.
 
+Gateway background protection follows process-local, connection/profile/session
+turn leases. Idle retention remains opt-in through Persistent connection. An
+accepted Android foreground-service start is promoted before shutdown, including
+when a turn finishes before the start callback arrives. Overlapping demand uses
+the latest state; old start commands never restore old turn counts. New service
+launches wait for a visible application lifecycle, while an existing foreground
+service continues protecting active work after backgrounding. A rejected launch
+is logged and may retry on a later foreground transition.
+
+The notification's **Turn off always-on** action persists that preference before
+the collector reconciles current turn leases. It does not interrupt Hermes work.
+Task removal drops local foreground protection without clearing chat-owned
+leases or assuming process termination; if the process survives, returning to
+the app can protect unfinished turns again. The service is not sticky and does
+not restart idle retention from stale notification actions after process death.
+
 The session drawer is a Dashboard REST consumer, not a Gateway-socket view.
 Profile-scoped session browsing and stored transcript reads remain available
 whenever the authenticated Dashboard route is available, including while the
