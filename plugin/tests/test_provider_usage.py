@@ -81,9 +81,11 @@ class _SequencedSession:
 class ProviderUsageModelTests(unittest.IsolatedAsyncioTestCase):
     def test_profile_home_is_exact_and_rejects_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
-            root = Path(raw)
+            # Resolve the temp root so macOS /var -> /private/var matches
+            # Path.resolve() inside resolve_profile_home.
+            root = Path(raw).resolve()
             (root / "config.yaml").write_text("model: {}\n", encoding="utf-8")
-            victor = root / "profiles" / "victor"
+            victor = (root / "profiles" / "victor").resolve()
             victor.mkdir(parents=True)
             (victor / "config.yaml").write_text("model: {}\n", encoding="utf-8")
             self.assertEqual(resolve_profile_home(str(root / "config.yaml"), "Victor"), victor)
