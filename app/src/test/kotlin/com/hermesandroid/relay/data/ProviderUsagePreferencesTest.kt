@@ -44,7 +44,7 @@ class ProviderUsagePreferencesTest {
         val preferences = repository.preferences.first()
         assertEquals(ProviderUsageLandingMode.Summary, preferences.landingMode)
         assertEquals(
-            setOf("openai-codex", "nous", "opencode-go"),
+            setOf("openai-codex", "nous", "opencode-go", "supergrok"),
             preferences.visibleProviders,
         )
     }
