@@ -3,7 +3,6 @@ package com.hermesandroid.relay.network.shared
 import com.hermesandroid.relay.data.EndpointCandidate
 import com.hermesandroid.relay.data.ProxyEndpoint
 import com.hermesandroid.relay.data.isValidPinnedProxy
-import okhttp3.CertificatePinner
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import java.net.URI
@@ -67,8 +66,13 @@ private fun formatHost(host: String): String = if (':' in host) "[$host]" else h
 
 /**
  * Build a client that trusts the system normally, plus exactly the
- * pairing-advertised SPKI for this proxy. The authority guard keeps a pin
- * scoped to host *and port*; OkHttp's CertificatePinner alone is host-only.
+ * pairing-advertised SPKI for this proxy. Pin only in the custom
+ * [X509TrustManager] (host+port authority guard below). Do **not** also
+ * attach OkHttp [okhttp3.CertificatePinner] for the same pin — on some OEM
+ * stacks the pinner sees an empty peer certificate chain after the
+ * TrustManager already accepted the leaf, and the UI shows
+ * “Certificate pinning failure!” / “TLS failed — server may be http://”
+ * while the Mac live SPKI still matches.
  */
 fun buildPluginProxyClient(
     baseBuilder: OkHttpClient.Builder,
@@ -88,9 +92,6 @@ fun buildPluginProxyClient(
     if (rawSocketFactory != null) baseBuilder.socketFactory(rawSocketFactory)
     return baseBuilder
         .sslSocketFactory(sslContext.socketFactory, pinnedTrust)
-        .certificatePinner(
-            CertificatePinner.Builder().add(expectedHost, routes.pinSha256).build(),
-        )
         .addNetworkInterceptor(Interceptor { chain ->
             val requestUrl = chain.request().url
             if (!requestUrl.host.equals(expectedHost, ignoreCase = true) ||
