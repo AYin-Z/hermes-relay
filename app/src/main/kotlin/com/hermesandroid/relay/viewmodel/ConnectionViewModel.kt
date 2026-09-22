@@ -16,6 +16,7 @@ import com.hermesandroid.relay.auth.AuthManager
 import com.hermesandroid.relay.auth.AuthState
 import com.hermesandroid.relay.ui.theme.AppFont
 import com.hermesandroid.relay.ui.theme.AppThemes
+import com.hermesandroid.relay.ui.theme.AppearanceNightMode
 import com.hermesandroid.relay.ui.theme.normalizeAccentHex
 import com.hermesandroid.relay.ui.theme.AppearanceShape
 import com.hermesandroid.relay.ui.components.avatar.PetImporter
@@ -2151,7 +2152,7 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     // Theme preference — light/dark/auto mode axis.
     val theme: StateFlow<String> = application.relayDataStore.data
         .map { preferences ->
-            preferences[AppearancePreferences.themeKey] ?: "auto"
+            AppearanceNightMode.normalizePreference(preferences[AppearancePreferences.themeKey])
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "auto")
 
@@ -5130,6 +5131,10 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                 if (lastSeen != null && lastSeen != currentVersion) {
                     _showWhatsNew.value = true
                 }
+
+                // Lock DayNight to the saved appearance before the splash drops
+                // so the first real frame matches Appearance (not system dark).
+                AppearanceNightMode.applyFromPreferences(preferences)
 
                 // Mark ready after first DataStore emission (UI can render)
                 if (!_isReady.value) {
@@ -8379,14 +8384,25 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     // --- Shared methods ---
 
     fun setTheme(theme: String) {
+        val normalized = AppearanceNightMode.normalizePreference(theme)
+        AppearanceNightMode.applyResolved(
+            themePreference = normalized,
+            appThemeId = appTheme.value,
+            customTheme = activeCustomTheme.value,
+        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
-                preferences[AppearancePreferences.themeKey] = theme
+                preferences[AppearancePreferences.themeKey] = normalized
             }
         }
     }
 
     fun setAppTheme(themeId: String) {
+        AppearanceNightMode.applyResolved(
+            themePreference = theme.value,
+            appThemeId = themeId,
+            customTheme = null,
+        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 preferences[AppearancePreferences.appThemeKey] = themeId
@@ -8512,6 +8528,13 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
 
     fun saveCustomTheme(preset: CustomThemePreset, select: Boolean = true) {
         val normalized = preset.normalized() ?: return
+        if (select) {
+            AppearanceNightMode.applyResolved(
+                themePreference = normalized.mode,
+                appThemeId = normalized.appThemeId,
+                customTheme = normalized,
+            )
+        }
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 val current = AppearancePreferences.decodeCustomThemes(
@@ -8552,6 +8575,11 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                     preferences[AppearancePreferences.themeKey] = "auto"
                     preferences[AppearancePreferences.shapeKey] = AppearanceShape.DEFAULT.id
                     preferences.remove(AppearancePreferences.accentKey)
+                    AppearanceNightMode.applyResolved(
+                        themePreference = "auto",
+                        appThemeId = AppThemes.DEFAULT_ID,
+                        customTheme = null,
+                    )
                 }
             }
         }
@@ -8562,6 +8590,11 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun resetAppearanceTheme() {
+        AppearanceNightMode.applyResolved(
+            themePreference = "auto",
+            appThemeId = AppThemes.DEFAULT_ID,
+            customTheme = null,
+        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 preferences[AppearancePreferences.appThemeKey] = AppThemes.DEFAULT_ID
