@@ -63,7 +63,7 @@ class GatewayRoutesAccessPresentationTest {
             role = "plugin_proxy",
             priority = 0,
             proxy = ProxyEndpoint(
-                url = "https://192.168.50.182:9443",
+                url = "https://192.168.1.20:9443",
                 transportHint = "https",
                 pinSha256 = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 surfaces = listOf("relay", "api", "dashboard"),
@@ -72,10 +72,10 @@ class GatewayRoutesAccessPresentationTest {
 
         val presentation = gatewayRoutePresentation(
             activeEndpoint = secureLink,
-            configuredDashboardUrl = "http://192.168.50.182:9119",
+            configuredDashboardUrl = "http://192.168.1.20:9119",
         )
 
-        assertEquals("https://192.168.50.182:9443/dashboard", presentation.address)
+        assertEquals("https://192.168.1.20:9443/dashboard", presentation.address)
         assertEquals("Hermes Secure Link (HTTPS)", presentation.label)
         assertFalse(presentation.publicHttpViolation)
         assertTrue(presentation.configured)
@@ -86,7 +86,7 @@ class GatewayRoutesAccessPresentationTest {
         val relayOnlyProxy = EndpointCandidate(
             role = "plugin_proxy",
             proxy = ProxyEndpoint(
-                url = "https://192.168.50.182:9443",
+                url = "https://192.168.1.20:9443",
                 pinSha256 = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 surfaces = listOf("relay"),
             ),
@@ -94,11 +94,11 @@ class GatewayRoutesAccessPresentationTest {
 
         val presentation = gatewayRoutePresentation(
             activeEndpoint = relayOnlyProxy,
-            configuredDashboardUrl = "http://192.168.50.182:9119",
+            configuredDashboardUrl = "http://192.168.1.20:9119",
         )
 
         // No dashboard surface → fall back to the saved configured URL.
-        assertEquals("http://192.168.50.182:9119", presentation.address)
+        assertEquals("http://192.168.1.20:9119", presentation.address)
         assertEquals("LAN (HTTP)", presentation.label)
     }
 

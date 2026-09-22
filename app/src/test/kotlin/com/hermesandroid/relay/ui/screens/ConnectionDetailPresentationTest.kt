@@ -128,18 +128,18 @@ class ConnectionDetailPresentationTest {
         val secureLink = EndpointCandidate(
             role = "plugin_proxy",
             proxy = ProxyEndpoint(
-                url = "https://192.168.50.182:9443",
+                url = "https://192.168.1.20:9443",
                 pinSha256 = "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 surfaces = listOf("relay", "api", "dashboard"),
             ),
         )
         val route = resolveDetailRoutePresentation(
             activeEndpoint = secureLink,
-            effectiveDashboardUrl = "https://192.168.50.182:9443/dashboard",
+            effectiveDashboardUrl = "https://192.168.1.20:9443/dashboard",
         )
 
         assertEquals("Hermes Secure Link (HTTPS)", route.label)
-        assertEquals("https://192.168.50.182:9443/dashboard", route.address)
+        assertEquals("https://192.168.1.20:9443/dashboard", route.address)
     }
 
     @Test

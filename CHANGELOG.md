@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Android Secure Link keeps pairing pin enforcement on real Secure Link request URLs for HTTP probes, API/Relay clients, Gateway WS, and voice, shows the pinned HTTPS dashboard route instead of plain :9119, and pins only in the custom TrustManager (no OkHttp CertificatePinner double-check that can fail with an empty peer chain on some devices).
 - Android safely settles Gateway foreground-service starts before stopping local retention, preventing the startup/shutdown race reported in #603. Turning off always-on connectivity preserves active turns.
 - Android Standard Voice speaks live background completions in its active conversation after the original reply finishes. Stop and conversation changes discard pending speech. (#545)
 
