@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 29+: disable OEM force-dark so an explicit Appearance Light
+         preference is not inverted while the activity still hosts a DayNight
+         parent. Attribute requires API 29 (lint NewApi vs minSdk 26). -->
+    <style name="Theme.HermesRelay" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>
