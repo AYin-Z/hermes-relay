@@ -458,8 +458,17 @@ class UpstreamTransportController(
         }
         gatewayClientCache?.third?.shutdown()
         lateinit var client: GatewayChatClient
+        // Dashboard REST already carries the pairing SPKI pin for Secure Link.
+        // The gateway WS upgrade must use the SAME client — a bare OkHttpClient
+        // rejects the self-signed Secure Link cert ("Trust anchor … not found")
+        // and leaves Chat stuck on "Checking gateway…".
+        val dashboardClient = dashboardClientFor(connectionId, dashboardUrl)
+        val gatewayHttpClient = dashboardRestHttpClients[
+            connectionId to dashboardUrl.trim().trimEnd('/'),
+        ]
         client = GatewayChatClient(
-            initialDashboardClient = dashboardClientFor(connectionId, dashboardUrl),
+            initialDashboardClient = dashboardClient,
+            okHttpClient = gatewayHttpClient,
             onGatewayUnsupported = {
                 updateGatewayAvailabilityIfCurrent(
                     connectionId,
@@ -531,12 +540,16 @@ class UpstreamTransportController(
             if (cached.activeRequests == 0 && cached.retained == 0) shutdownRouteEntry(cached)
         }
         val dashboardClient = dashboardClientFor(connectionId, dashboardUrl)
+        val gatewayHttpClient = dashboardRestHttpClients[
+            connectionId to dashboardUrl.trim().trimEnd('/'),
+        ]
         entry = RouteGatewayEntry(
             dashboardUrl = dashboardUrl,
             dashboardClient = dashboardClient,
             client = GatewayChatClient(
                 initialDashboardClient = dashboardClient,
                 fixedSessionProfile = profile,
+                okHttpClient = gatewayHttpClient,
             ).also { it.setKeepAliveInBackground(gatewayKeepAliveProvider()) },
         )
         if (retain) entry.retained = 1 else entry.activeRequests = 1
