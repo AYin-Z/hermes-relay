@@ -18,7 +18,7 @@ import {
   useQueryClient,
   useValue
 } from '@hermes/plugin-sdk'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Fragment, jsx, jsxs } from 'react/jsx-runtime'
 
 const PLUGIN_ID = 'hermes-relay'
@@ -406,6 +406,10 @@ export function createSecureLinkSetup(ctx) {
     const [invite, setInvite] = useState('')
     const [copied, setCopied] = useState(false)
     const sequence = useRef(0)
+    useEffect(() => {
+      sequence.current += 1
+      setReport(null); setInvite(''); setError(''); setBusy(false); setCopied(false)
+    }, [status?.url])
     const edit = (setter, value) => {
       sequence.current += 1
       setter(value); setReport(null); setInvite(''); setError(''); setBusy(false); setCopied(false)
