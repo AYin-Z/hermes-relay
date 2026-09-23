@@ -385,6 +385,17 @@ async def handle_health(request: web.Request) -> web.Response:
     return web.json_response(payload)
 
 
+async def handle_secure_link_preflight(request: web.Request) -> web.Response:
+    """Operator-only readiness report; public Secure Link never proxies it."""
+    _require_loopback(request)
+    from .secure_link_setup import secure_link_preflight
+
+    report = await secure_link_preflight(
+        request.app["server"], request.query.get("host"), request.query.get("port"),
+    )
+    return web.json_response(report)
+
+
 async def handle_pairing_register(request: web.Request) -> web.Response:
     """Pre-register an externally-provided pairing code.
 
@@ -4878,6 +4889,7 @@ def create_app(config: RelayConfig) -> web.Application:
     app.router.add_get("/ws", handle_ws)
     app.router.add_get("/", handle_ws)
     app.router.add_get("/health", handle_health)
+    app.router.add_get("/secure-link/preflight", handle_secure_link_preflight)
     app.router.add_post("/pairing/register", handle_pairing_register)
     app.router.add_post("/pairing/mint", handle_pairing_mint)
     app.router.add_post("/pairing/approve", handle_pairing_approve)
@@ -5197,23 +5209,25 @@ async def _on_secure_proxy_startup(app: web.Application) -> None:
     config = server.config
     if server.secure_proxy_candidate is None:
         return
-    if not config.secure_proxy_cert or not config.secure_proxy_key:
-        raise RuntimeError(f"{SECURE_LINK_NAME} identity is unavailable")
-    proxy_app = create_secure_proxy_app(server)
-    runner = web.AppRunner(proxy_app, access_log=None)
-    await runner.setup()
-    site = web.TCPSite(
-        runner,
-        host=config.secure_proxy_host,
-        port=config.secure_proxy_port,
-        ssl_context=secure_proxy_tls_context(
-            Path(config.secure_proxy_cert), Path(config.secure_proxy_key)
-        ),
-    )
+    runner: web.AppRunner | None = None
     try:
+        if not config.secure_proxy_cert or not config.secure_proxy_key:
+            raise ValueError(f"{SECURE_LINK_NAME} identity is unavailable")
+        proxy_app = create_secure_proxy_app(server)
+        runner = web.AppRunner(proxy_app, access_log=None)
+        await runner.setup()
+        site = web.TCPSite(
+            runner,
+            host=config.secure_proxy_host,
+            port=config.secure_proxy_port,
+            ssl_context=secure_proxy_tls_context(
+                Path(config.secure_proxy_cert), Path(config.secure_proxy_key)
+            ),
+        )
         await site.start()
-    except (OSError, ssl.SSLError) as exc:
-        await runner.cleanup()
+    except (OSError, ValueError) as exc:
+        if runner is not None:
+            await runner.cleanup()
         server.secure_proxy_candidate = None
         logger.error("%s disabled: listener failed: %s", SECURE_LINK_NAME, exc)
         return

@@ -499,7 +499,9 @@ async def _proxy_websocket(
         for protocol in value.split(",")
         if protocol.strip()
     ]
-    downstream = web.WebSocketResponse(heartbeat=30, max_msg_size=4 * 1024 * 1024)
+    downstream = web.WebSocketResponse(heartbeat=30, max_msg_size=4 * 1024 * 1024, protocols=protocols)
+    if not downstream.can_prepare(request).ok:
+        raise web.HTTPBadRequest(text="WebSocket upgrade required")
     try:
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=None, connect=5),

@@ -1090,6 +1090,7 @@ async def get_remote_access_status() -> dict[str, Any]:
 
     secure_link: dict[str, Any] = {
         "enabled": False,
+        "state": "disabled",
         "reason": "Hermes Secure Link is not enabled on the Relay host",
     }
     try:
@@ -1105,6 +1106,7 @@ async def get_remote_access_status() -> dict[str, Any]:
             reach = relay_secure_link.get("reach", {}) if isinstance(relay_secure_link, dict) else {}
             secure_link = {
                 "enabled": True,
+                "state": "enabled",
                 "role": candidate.get("role"),
                 "recommended": candidate.get("recommended") is True,
                 "security": candidate.get("security"),
@@ -1116,9 +1118,16 @@ async def get_remote_access_status() -> dict[str, Any]:
                     "last_error": reach.get("last_error") if isinstance(reach.get("last_error"), str) else None,
                 } if isinstance(reach, dict) else {"enabled": False, "state": "disabled"},
             }
+        elif isinstance(relay_health, dict) and isinstance(relay_health.get("secure_link"), dict) and relay_health["secure_link"].get("enabled") is True:
+            secure_link = {
+                "enabled": False,
+                "state": "unavailable",
+                "reason": "Secure Link is configured but its listener is unavailable. Run setup checks before retrying.",
+            }
     except HTTPException as exc:
         secure_link = {
             "enabled": False,
+            "state": "unknown",
             "reason": f"Relay status unavailable: {exc.detail}",
         }
 
@@ -1132,6 +1141,14 @@ async def get_remote_access_status() -> dict[str, Any]:
         },
         "upstream_canonical": _canonical_upstream_present(),
     }
+
+
+@router.get("/remote-access/secure-link/preflight")
+async def get_secure_link_preflight(host: str | None = None, port: str | None = None) -> Any:
+    """Use the running Relay's read-only checks, not the Dashboard's environment."""
+    return await _proxy_get("/secure-link/preflight", params={
+        key: value for key, value in {"host": host, "port": port}.items() if value is not None
+    })
 
 
 @router.post("/remote-access/tailscale/enable")

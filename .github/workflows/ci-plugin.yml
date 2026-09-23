@@ -105,6 +105,8 @@ jobs:
             plugin/tests/test_relay_security.py \
             plugin/tests/test_secure_proxy.py \
             plugin/tests/test_secure_proxy_contract.py \
+            plugin/tests/test_secure_link_setup.py \
+            plugin/tests/test_secure_proxy_security.py \
             plugin/tests/test_voice_routes.py \
             plugin/tests/test_session_grants.py \
             plugin/tests/test_native_layout_imports.py \

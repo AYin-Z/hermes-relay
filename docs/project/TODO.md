@@ -6,6 +6,19 @@ For shipped work, see `DEVLOG.md`. For architectural decisions, see `docs/decisi
 
 ---
 
+## Secure Link managed activation
+
+The first guided setup uses shared read-only checks, copyable startup settings,
+explicit operator restart, and a re-checked pairing handoff. Add automatic
+activation only for explicitly supported service-manager adapters that prove
+ownership, preview the exact change and interruption, preserve the prior
+configuration, verify the new listener, and roll back a failed activation.
+Unknown/embedded managers must retain the guided-command path. Never infer a
+service name, change an upstream bind, open firewall ports, rotate keys, or
+restart Gateway merely because a user opens setup.
+
+---
+
 ## Restore the plugin manifest v2 declaration after the Hermes installer fix ships
 
 Hermes installers in affected stable releases reject `manifest_version: 2`

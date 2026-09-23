@@ -15,6 +15,29 @@ must make the listener reachable.
 Secure Link is not an arbitrary reverse proxy and does not replace any
 service's authentication or authorization.
 
+## Guided setup control surface
+
+`GET /secure-link/preflight` is a loopback-only, read-only Relay operator route.
+The authenticated Dashboard/Desktop plugin forwards it through
+`GET /remote-access/secure-link/preflight`; `hermes relay secure-link` consumes
+the same report from the running Relay. Public `/relay/*` ingress never exposes
+this operator endpoint. Client input selects only the proposed listener address
+and port; it cannot select a probe upstream or certificate/key file.
+
+The report checks a usable bind address, port availability, existing certificate
+identity, fixed loopback upstreams, Dashboard authentication, and restart impact.
+It does not mutate configuration, generate/rotate secrets, or manage services.
+Instructions preserve the existing service owner and require an explicit operator
+restart. Re-checking an active matching origin enables the pairing handoff; a
+proposed address alone never enables it. Report readiness is not client sign-in,
+network reachability from another device, or Gateway Chat readiness.
+
+Pairing previews derive declared namespaces from validated proxy advertisements
+without displaying their certificate/pin or treating ordinary system-TLS probe
+failure as proof that the paired route is broken. Signed QR import remains the
+client trust ceremony. Unsupported/older Relay setup endpoints fail visibly and
+never fall back to browser-side configuration writes.
+
 ## Trust boundaries
 
 - The operator-reviewed pairing QR is the first-pair trust ceremony. It must

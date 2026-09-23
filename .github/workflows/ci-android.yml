@@ -188,6 +188,7 @@ jobs:
             --tests '*RelayVoiceClientRoutingTest.proxyProviderOwnsBothVoiceSessionAndWebSocketRequests' \
             --tests com.hermesandroid.relay.network.relay.RelayHttpClientDiagnosticsTest \
             --tests com.hermesandroid.relay.ui.components.GatewayRoutesAccessPresentationTest \
+            --tests com.hermesandroid.relay.ui.components.EndpointsCardCompactLayoutTest \
             --tests com.hermesandroid.relay.ui.screens.ConnectionDetailPresentationTest \
             --tests com.hermesandroid.relay.viewmodel.ConnectionSwitchTest \
             --tests com.hermesandroid.relay.util.ServerAddressTest \

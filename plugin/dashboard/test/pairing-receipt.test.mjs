@@ -35,6 +35,36 @@ test("certificate-bearing pairing invite fits the Dashboard QR renderer", () => 
   assert.ok(qr.version <= 40);
 });
 
+test("Secure Link receipt derives only its advertised namespaces without exposing trust material", () => {
+  const payload = { endpoints: [{ role: "plugin_proxy", proxy: {
+    url: "https://relay.example:9443",
+    pin_sha256: "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    cert_der: "public-certificate",
+    surfaces: ["relay", "dashboard"],
+  } }] };
+  const receipt = pairingEndpointReceipt(payload);
+  assert.deepEqual(receipt.blockingIssues, []);
+  assert.equal(receipt.routes[0].protection, "Secure Link · paired TLS");
+  assert.deepEqual(receipt.routes[0].surfaces.map(s => s.url), [
+    "https://relay.example:9443/dashboard", "wss://relay.example:9443/relay/ws",
+  ]);
+  const probes = pairingSurfaceProbes(receipt);
+  assert.ok(probes.every(probe => probe.requires_paired_client));
+  assert.deepEqual(pairingProbeStatus(probes[0]), { healthy: null, label: "Import QR to verify" });
+  assert.equal(JSON.stringify(receipt).includes("public-certificate"), false);
+  assert.equal(JSON.stringify(receipt).includes("sha256/"), false);
+  payload.endpoints[0].proxy.pin_sha256 = "wrong";
+  assert.ok(pairingEndpointReceipt(payload).blockingIssues.length);
+});
+
+test("Secure Link receipt rejects path traversal rather than normalizing it into an origin", () => {
+  const receipt = pairingEndpointReceipt({ endpoints: [{ role: "plugin_proxy", proxy: {
+    url: "https://relay.example/a/..", pin_sha256: "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    cert_der: "public-certificate", surfaces: ["relay"],
+  } }] });
+  assert.ok(receipt.blockingIssues.length);
+});
+
 test("only Dashboard ingress Relay auth challenges are healthy", () => {
   assert.deepEqual(
     pairingProbeStatus({

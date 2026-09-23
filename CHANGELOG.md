@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Guided Secure Link setup in Dashboard and the Desktop Relay pane, with shared read-only host CLI checks, restart instructions, and signed pairing handoff.
+
 ### Fixed
 
+- Secure Link configuration failures leave ordinary Relay available; route details and pairing previews resolve the advertised service namespaces.
 - Dashboard pairing QR codes support larger certificate-bearing Secure Link invites.
 - Secure Link preserves Gateway ticket authentication and Dashboard login paths, bounds rewritten responses, and serves compatible health information without additional loopback probes.
 - Android Secure Link enforces the paired certificate pin for HTTP, Gateway, and voice traffic, retains the correct TLS policy during Gateway route changes, and displays the active HTTPS Dashboard route.
