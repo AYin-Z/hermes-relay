@@ -31,6 +31,7 @@ import logging
 import math
 import mimetypes
 import os
+import re
 import secrets
 import signal
 import socket
@@ -317,6 +318,7 @@ class RelayServer:
         await self.desktop.close()
         await self.tui.close()
         await self.proactive.close()
+        await self.media.close()
 
         # Close all WebSocket connections
         for ws in list(self._clients):
@@ -1757,6 +1759,7 @@ async def handle_media_register(request: web.Request) -> web.Response:
     # Model-emitted sensitivity hint — transported verbatim. Absent/falsey
     # → not sensitive (back-compat with older callers that never send it).
     sensitive = _coerce_sensitive(payload.get("sensitive"))
+    owned_file = payload.get("owned_file") is True
 
     server: RelayServer = request.app["server"]
     try:
@@ -1765,9 +1768,10 @@ async def handle_media_register(request: web.Request) -> web.Response:
             content_type=content_type,
             file_name=file_name,
             sensitive=sensitive,
+            owned_file=owned_file,
         )
     except MediaRegistrationError as exc:
-        logger.info("Media registration rejected: %s", exc)
+        logger.info("Media registration rejected")
         return web.json_response(
             {"ok": False, "error": str(exc)}, status=400
         )
@@ -1901,23 +1905,22 @@ async def handle_media_upload(request: web.Request) -> web.Response:
             path=tmp.name,
             content_type=file_content_type,
             file_name=base_name,
+            owned_file=True,
         )
     except MediaRegistrationError as exc:
         try:
             os.unlink(tmp.name)
         except OSError:
             pass
-        logger.info("Media upload registration rejected: %s", exc)
+        logger.info("Media upload registration rejected")
         return web.json_response(
             {"ok": False, "error": str(exc)}, status=400
         )
 
     logger.info(
-        "Media uploaded: token=%s... bytes=%d type=%s file=%s",
-        entry.token[:8],
+        "Media uploaded: bytes=%d type=%s",
         bytes_written,
         file_content_type,
-        base_name,
     )
     return web.json_response(
         {
@@ -1988,15 +1991,20 @@ async def handle_media_get(request: web.Request) -> web.StreamResponse:
     else:
         headers["Content-Disposition"] = "inline"
 
-    logger.debug(
-        "Serving media token=%s... path=%s size=%d sensitive=%s to session=%s...",
-        token[:8],
-        entry.path,
-        entry.size,
-        entry.sensitive,
-        bearer[:8],
-    )
+    logger.debug("Serving media size=%d sensitive=%s", entry.size, entry.sensitive)
     return web.FileResponse(entry.path, headers=headers)
+
+
+async def handle_media_mark_sensitive(request: web.Request) -> web.Response:
+    """Allow a host-local screenshot tool to add the private-media hint."""
+    _require_loopback(request)
+    server: RelayServer = request.app["server"]
+    token = request.match_info["token"]
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,128}", token):
+        raise web.HTTPNotFound()
+    if not await server.media.mark_sensitive(token):
+        raise web.HTTPNotFound()
+    return web.json_response({"ok": True})
 
 
 async def handle_media_by_path(request: web.Request) -> web.StreamResponse:
@@ -2098,12 +2106,12 @@ async def handle_media_by_path(request: web.Request) -> web.StreamResponse:
         # retrying) from sandbox violations (phone should mark FAILED with
         # a different error). Both are non-retryable.
         if "does not exist" in msg or "not a regular file" in msg:
-            logger.info("Media by-path: not found — %s", msg)
+            logger.info("Media by-path: not found")
             raise web.HTTPNotFound(text=msg)
         # Everything else — not absolute, outside allowed root, too large,
         # bad stat — is a sandbox or policy violation. 403 signals this
         # distinctly from 401 (bad auth) and 400 (malformed request).
-        logger.info("Media by-path: sandbox violation — %s", msg)
+        logger.info("Media by-path: sandbox violation")
         raise web.HTTPForbidden(text=msg)
 
     # Content type: honor phone-provided hint if given; otherwise guess.
@@ -2130,12 +2138,10 @@ async def handle_media_by_path(request: web.Request) -> web.StreamResponse:
         headers["X-Media-Sensitive"] = "1"
 
     logger.debug(
-        "Serving media by-path %s size=%d type=%s sensitive=%s to session=%s...",
-        real_path,
+        "Serving media by-path size=%d type=%s sensitive=%s",
         size,
         content_type,
         sensitive,
-        bearer[:8],
     )
     return web.FileResponse(real_path, headers=headers)
 
@@ -4263,7 +4269,7 @@ async def handle_ws(request: web.Request) -> web.WebSocketResponse:
 
     server._clients[ws] = session_token
     server._client_tasks[ws] = set()
-    logger.info("Client authenticated from %s (token=%s...)", remote_ip, session_token[:8])
+    logger.info("Client authenticated from %s", remote_ip)
 
     try:
         async for msg in ws:
@@ -4926,6 +4932,7 @@ def create_app(config: RelayConfig) -> web.Application:
     app.router.add_post("/media/register", handle_media_register)
     # === PHASE3-bridge-server-followup: /media/upload ===
     app.router.add_post("/media/upload", handle_media_upload)
+    app.router.add_post("/media/{token}/sensitive", handle_media_mark_sensitive)
     # === END PHASE3-bridge-server-followup ===
     # Order matters: the fixed-path "/media/by-path" route must be declared
     # before the wildcard "/media/{token}" route or aiohttp will swallow
@@ -5184,17 +5191,29 @@ async def _on_app_startup(app: web.Application) -> None:
         _profile_rescan_loop(app), name="profile-rescan-loop"
     )
     app["_profile_rescan_task"] = task
+    app["_media_cleanup_task"] = asyncio.create_task(
+        _media_cleanup_loop(app), name="media-cleanup-loop"
+    )
+
+
+async def _media_cleanup_loop(app: web.Application) -> None:
+    """Retire expired relay-owned uploads even when no media is requested."""
+    server: RelayServer = app["server"]
+    while True:
+        await asyncio.sleep(300)
+        await server.media.cleanup()
 
 
 async def _on_app_cleanup(app: web.Application) -> None:
     """Cancel background tasks cleanly."""
-    task = app.get("_profile_rescan_task")
-    if task is not None and not task.done():
-        task.cancel()
-        try:
-            await task
-        except (asyncio.CancelledError, Exception):
-            pass
+    for key in ("_profile_rescan_task", "_media_cleanup_task"):
+        task = app.get(key)
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 async def _on_app_shutdown(app: web.Application) -> None:
@@ -5465,5 +5484,6 @@ def main() -> None:
         host=config.host,
         port=config.port,
         ssl_context=ssl_ctx,
+        access_log=None,  # Media URLs carry private tokens or absolute paths.
         print=None,  # Suppress aiohttp's default startup banner
     )

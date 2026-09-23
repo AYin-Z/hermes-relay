@@ -336,11 +336,11 @@ class RelayHttpClient(
                 Result.success(FetchedMedia(contentType, bytes, fileName, sensitive))
             }
         } catch (e: IOException) {
-            Log.w(TAG, "fetchMedia failed: ${e.message}")
-            Result.failure(e)
+            Log.w(TAG, "fetchMedia failed")
+            Result.failure(if (e is RelayMediaLimitException) e else IOException("Relay media request failed"))
         } catch (e: Exception) {
-            Log.w(TAG, "fetchMedia unexpected error: ${e.message}")
-            Result.failure(e)
+            Log.w(TAG, "fetchMedia unexpected error")
+            Result.failure(IOException("Relay media request failed"))
         }
     }
 
@@ -416,7 +416,7 @@ class RelayHttpClient(
                     val reason = when (response.code) {
                         401 -> "Unauthorized — re-pair with the relay"
                         403 -> "Path not allowed by relay sandbox"
-                        404 -> "File not found on relay: $path"
+                        404 -> "File not found on relay"
                         400 -> "Bad request — missing path"
                         in 500..599 -> "Relay error (HTTP ${response.code})"
                         else -> "HTTP ${response.code}: ${response.message.ifBlank { "request failed" }}"
@@ -446,15 +446,15 @@ class RelayHttpClient(
                 Result.success(FetchedMedia(contentType, bytes, fileName, sensitive))
             }
         } catch (e: IOException) {
-            Log.w(TAG, "fetchMediaByPath failed for $path: ${e.message}")
+            Log.w(TAG, "fetchMediaByPath failed")
             if (e is RelayMediaLimitException) {
                 Result.failure(e)
             } else {
-                Result.failure(IOException("Relay unreachable: ${e.message ?: "IO error"}"))
+                Result.failure(IOException("Relay media request failed"))
             }
         } catch (e: Exception) {
-            Log.w(TAG, "fetchMediaByPath unexpected error for $path: ${e.message}")
-            Result.failure(e)
+            Log.w(TAG, "fetchMediaByPath unexpected error")
+            Result.failure(IOException("Relay media request failed"))
         }
     }
 

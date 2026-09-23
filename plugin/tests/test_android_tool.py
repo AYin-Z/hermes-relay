@@ -279,14 +279,24 @@ class TestScreenshot:
                       json={"media": "MEDIA:hermes-relay://old-token-123456"})
         responses.add(responses.GET, f"{bridge_url}/media/old-token-123456",
                       body=png, content_type="image/png")
+        with mock.patch("plugin.relay.client.mark_media_sensitive", return_value=True) as mark:
+            result = android_screenshot(sensitive=True)
+        mark.assert_called_once_with("old-token-123456")
+        assert "MEDIA:hermes-relay://old-token-123456" in result["text_summary"]
+
+    @responses.activate
+    def test_sensitive_legacy_screenshot_registers_managed_file(self, bridge_url):
+        png = b"\x89PNG\r\n\x1a\nlegacy-private"
+        responses.add(responses.GET, f"{bridge_url}/screenshot",
+                      json={"image": base64.b64encode(png).decode("ascii")})
         with mock.patch("plugin.relay.client.register_media", return_value="private-token") as register:
             result = android_screenshot(sensitive=True)
         path = register.call_args.args[0]
         try:
             assert Path(path).read_bytes() == png
             assert register.call_args.kwargs["sensitive"] is True
+            assert register.call_args.kwargs["owned_file"] is True
             assert "MEDIA:hermes-relay://private-token" in result["text_summary"]
-            assert "old-token" not in result["text_summary"]
         finally:
             Path(path).unlink(missing_ok=True)
 

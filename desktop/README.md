@@ -433,6 +433,8 @@ The server-side plugin (`plugin/tools/desktop_tool.py`) registers `desktop_*` to
 
 `desktop_computer_status`, `desktop_computer_screenshot`, `desktop_computer_action`, `desktop_computer_grant_request`, and `desktop_computer_cancel` are registered server-side but the desktop client advertises and serves them only when explicitly enabled:
 
+The screenshot tool attaches a validated PNG or JPEG as a native host image result when the bounded relay response contains image bytes. A `save_to` capture remains a saved-path response. The desktop wire budget still rejects oversized captures rather than placing unbounded image data in a tool result.
+
 ```sh
 hermes-relay computer-use enable
 hermes-relay computer-use status

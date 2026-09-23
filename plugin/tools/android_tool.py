@@ -673,8 +673,9 @@ def android_screenshot(sensitive: bool = False) -> dict:
     attach the bounded image bytes as a native multimodal tool result. The
     marker remains in the text summary for phone-side media delivery.
 
-    ``sensitive=True`` re-registers the validated bytes as sensitive media,
-    preserving the relay's phone-side blur header.
+    ``sensitive=True`` marks a current relay token private in place, preserving
+    the phone-side blur header without duplicating the image. Legacy inline
+    images use a managed temporary file that the relay retires with its token.
 
     Older Android builds that return inline base64 are also accepted.
     """
@@ -688,26 +689,31 @@ def android_screenshot(sensitive: bool = False) -> dict:
         data = _get("/screenshot")
         img_bytes, mime, marker = resolve_screenshot(data, _bridge_request, _timeout())
         if sensitive:
-            import os
-            import tempfile
-            from ..relay.client import register_media
+            if marker:
+                from ..relay.client import mark_media_sensitive
 
-            with tempfile.NamedTemporaryFile(
-                suffix=".png" if mime == "image/png" else ".jpg",
-                prefix="android_screenshot_", delete=False,
-            ) as tmp:
-                tmp.write(img_bytes)
-                path = tmp.name
-            token = None
-            try:
-                token = register_media(path, mime, sensitive=True)
-            finally:
-                # Registry serves the file by path, so retain it on success.
+                if not mark_media_sensitive(marker.removeprefix("MEDIA:hermes-relay://")):
+                    return {"error": "Sensitive screenshot registration failed"}
+            else:
+                import os
+                import tempfile
+                from ..relay.client import register_media
+
+                with tempfile.NamedTemporaryFile(
+                    suffix=".png" if mime == "image/png" else ".jpg",
+                    prefix="android_screenshot_", delete=False,
+                ) as tmp:
+                    tmp.write(img_bytes)
+                    path = tmp.name
+                token = None
+                try:
+                    token = register_media(path, mime, sensitive=True, owned_file=True)
+                finally:
+                    if not token:
+                        os.unlink(path)
                 if not token:
-                    os.unlink(path)
-            if not token:
-                return {"error": "Sensitive screenshot registration failed"}
-            marker = f"MEDIA:hermes-relay://{token}"
+                    return {"error": "Sensitive screenshot registration failed"}
+                marker = f"MEDIA:hermes-relay://{token}"
         image_url = f"data:{mime};base64,{base64.b64encode(img_bytes).decode('ascii')}"
         summary = "Screenshot captured; image attached for visual inspection."
         if marker:
