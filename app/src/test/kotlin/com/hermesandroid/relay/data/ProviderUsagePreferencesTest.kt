@@ -50,6 +50,15 @@ class ProviderUsagePreferencesTest {
     }
 
     @Test
+    fun existingInstallWithoutProviderChoiceGetsCurrentDefaults() = runTest {
+        repository.setLandingMode(ProviderUsageLandingMode.Expanded)
+
+        val preferences = repository.preferences.first()
+        assertEquals(ProviderUsageLandingMode.Expanded, preferences.landingMode)
+        assertTrue("supergrok" in preferences.visibleProviders)
+    }
+
+    @Test
     fun persistsDisplayMode() = runTest {
         repository.setLandingMode(ProviderUsageLandingMode.Expanded)
 
@@ -65,5 +74,14 @@ class ProviderUsagePreferencesTest {
         assertFalse("nous" in preferences.visibleProviders)
         assertTrue("openai-codex" in preferences.visibleProviders)
         assertTrue("opencode-go" in preferences.visibleProviders)
+    }
+
+    @Test
+    fun persistsSuperGrokHiddenChoice() = runTest {
+        repository.setProviderVisible("supergrok", false)
+
+        val preferences = repository.preferences.first()
+        assertTrue("nous" in preferences.visibleProviders)
+        assertFalse("supergrok" in preferences.visibleProviders)
     }
 }

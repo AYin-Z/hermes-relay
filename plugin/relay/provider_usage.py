@@ -608,11 +608,12 @@ def _supergrok_windows(config: dict[str, Any]) -> list[dict[str, Any]]:
     return windows
 
 
-def _supergrok_details(config: dict[str, Any]) -> list[str]:
+def _supergrok_details(config: dict[str, Any], payload: dict[str, Any]) -> list[str]:
     details: list[str] = []
     cap = _supergrok_cents(config.get("onDemandCap"))
     used = _supergrok_cents(config.get("onDemandUsed"))
-    if config.get("onDemandEnabled") is True or (cap or 0) > 0 or (used or 0) > 0:
+    enabled = payload.get("onDemandEnabled") is True or config.get("onDemandEnabled") is True
+    if enabled or (cap or 0) > 0 or (used or 0) > 0:
         parts = [
             part
             for part in (
@@ -623,6 +624,8 @@ def _supergrok_details(config: dict[str, Any]) -> list[str]:
         ]
         if parts:
             details.append(f"On-demand: {' '.join(parts)}")
+        elif enabled:
+            details.append("On-demand enabled")
     prepaid = _supergrok_cents(config.get("prepaidBalance"))
     if prepaid:
         details.append(f"Prepaid balance: ${prepaid / _SUPERGROK_CENTS_PER_USD:.2f}")
@@ -650,8 +653,15 @@ async def fetch_supergrok_usage(
             credential_resolver = resolve_xai_oauth_runtime_credentials
 
         credentials = await asyncio.to_thread(credential_resolver)
-    except Exception:
-        credentials = {}
+    except Exception as exc:
+        if getattr(exc, "code", None) == "xai_auth_missing":
+            return unavailable_provider("supergrok", "SuperGrok")
+        return unavailable_provider(
+            "supergrok",
+            "SuperGrok",
+            status="unavailable",
+            message="Could not resolve SuperGrok credentials",
+        )
     finally:
         _reset_home(home_token)
 
@@ -735,7 +745,7 @@ async def fetch_supergrok_usage(
         "fetched_at": _now_iso(),
         "plan": _bounded_text(payload.get("subscriptionTier"), 80),
         "windows": windows,
-        "details": _supergrok_details(config),
+        "details": _supergrok_details(config, payload),
         "message": None,
     }
 

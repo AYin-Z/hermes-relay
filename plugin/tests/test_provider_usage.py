@@ -189,6 +189,30 @@ class ProviderUsageModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "not_configured")
         self.assertEqual(result["windows"], [])
 
+    async def test_supergrok_missing_oauth_state_is_not_configured(self) -> None:
+        class MissingOAuthState(Exception):
+            code = "xai_auth_missing"
+
+        def resolve_credentials() -> dict:
+            raise MissingOAuthState("No credentials stored")
+
+        result = await fetch_supergrok_usage(credential_resolver=resolve_credentials)
+
+        self.assertEqual(result["status"], "not_configured")
+
+    async def test_supergrok_oauth_refresh_failure_is_unavailable(self) -> None:
+        class RefreshFailure(Exception):
+            code = "xai_refresh_failed"
+
+        def resolve_credentials() -> dict:
+            raise RefreshFailure("private token details")
+
+        result = await fetch_supergrok_usage(credential_resolver=resolve_credentials)
+
+        self.assertEqual(result["status"], "unavailable")
+        self.assertEqual(result["message"], "Could not resolve SuperGrok credentials")
+        self.assertNotIn("private token details", str(result))
+
     async def test_supergrok_maps_subscription_and_product_windows(self) -> None:
         session = _SequencedSession(
             [
@@ -252,6 +276,30 @@ class ProviderUsageModelTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["status"], "unavailable")
         self.assertEqual(len(session.calls), 1)
         self.assertNotIn("secret", str(result))
+
+    async def test_supergrok_reports_top_level_on_demand_state_without_amounts(self) -> None:
+        session = _SequencedSession(
+            [
+                _FakeResponse(payload={"userId": "user-1"}),
+                _FakeResponse(
+                    payload={
+                        "onDemandEnabled": True,
+                        "config": {
+                            "creditUsagePercent": 0,
+                            "currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY"},
+                        },
+                    }
+                ),
+            ]
+        )
+
+        result = await fetch_supergrok_usage(
+            session_factory=lambda: session,
+            credential_resolver=lambda: {"api_key": "secret"},
+        )
+
+        self.assertEqual(result["status"], "available")
+        self.assertEqual(result["details"], ["On-demand enabled"])
 
     async def test_supergrok_fresh_period_surfaces_window_without_inventing_a_percent(self) -> None:
         session = _SequencedSession(
