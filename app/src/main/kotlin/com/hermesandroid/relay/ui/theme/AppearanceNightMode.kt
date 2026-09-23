@@ -4,15 +4,13 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.datastore.preferences.core.Preferences
 import com.hermesandroid.relay.data.AppearancePreferences
 import com.hermesandroid.relay.data.CustomThemePreset
+import com.hermesandroid.relay.data.PersistedAppearance
 
 /**
  * Maps the persisted appearance preference onto AppCompat's night mode.
  *
- * Compose paints light/dark from [themePreference] directly, but the activity
- * still uses [Theme.AppCompat.DayNight]. Without locking night mode to the
- * saved preference, cold start follows the system (and OEM force-dark) even
- * when Appearance is set to Light — settings show Light while the UI stays
- * dark until the user toggles the mode control.
+ * Compose paints its own palette, while the activity and platform surfaces use
+ * Theme.AppCompat.DayNight. Both resolve from the same saved appearance.
  */
 internal object AppearanceNightMode {
     private val VALID_PREFERENCES = setOf("auto", "light", "dark")
@@ -43,21 +41,17 @@ internal object AppearanceNightMode {
         }
     }
 
-    fun nightModeFor(preferences: Preferences): Int {
-        val themePreference = normalizePreference(preferences[AppearancePreferences.themeKey])
-        val requestedThemeId = preferences[AppearancePreferences.appThemeKey]
-        val customThemes = AppearancePreferences.decodeCustomThemes(
-            preferences[AppearancePreferences.customThemesKey],
-        )
-        val customTheme = CustomThemePreset.idFromAppTheme(requestedThemeId)
-            ?.let { id -> customThemes.firstOrNull { it.id == id } }
-        val appTheme = customTheme?.toAppTheme() ?: AppThemes.byId(requestedThemeId)
+    fun nightModeFor(appearance: PersistedAppearance): Int {
+        val appTheme = appearance.customTheme?.toAppTheme() ?: AppThemes.byId(appearance.appThemeId)
         return nightModeFor(
-            themePreference = customTheme?.mode ?: themePreference,
+            themePreference = appearance.customTheme?.mode ?: appearance.themePreference,
             themeMode = appTheme.mode,
-            customTheme = customTheme,
+            customTheme = appearance.customTheme,
         )
     }
+
+    fun nightModeFor(preferences: Preferences): Int =
+        nightModeFor(AppearancePreferences.decode(preferences))
 
     /** Apply only when the mode actually changes — avoids redundant uiMode churn. */
     fun apply(nightMode: Int) {
@@ -74,18 +68,7 @@ internal object AppearanceNightMode {
         apply(nightModeFor(preferences))
     }
 
-    fun applyResolved(
-        themePreference: String,
-        appThemeId: String,
-        customTheme: CustomThemePreset? = null,
-    ) {
-        val appTheme = customTheme?.toAppTheme() ?: AppThemes.byId(appThemeId)
-        apply(
-            nightModeFor(
-                themePreference = customTheme?.mode ?: themePreference,
-                themeMode = appTheme.mode,
-                customTheme = customTheme,
-            ),
-        )
+    fun applyFromAppearance(appearance: PersistedAppearance) {
+        apply(nightModeFor(appearance))
     }
 }

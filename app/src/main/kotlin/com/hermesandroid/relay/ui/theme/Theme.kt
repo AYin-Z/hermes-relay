@@ -67,18 +67,13 @@ fun HermesRelayTheme(
     // avoiding a state-write-during-composition; the default theme matches the
     // façade's initial value, so the common path has no first-frame flash.
     //
-    // Also lock AppCompat night mode + system bar icon contrast to the resolved
-    // palette. Without this, DayNight follows the system on cold start even when
-    // Appearance is Light (settings show Light, UI stays dark until toggled).
+    // Match system-bar icon contrast to the palette in this window. AppCompat
+    // night mode follows persisted Appearance independently of composable
+    // previews and temporary supervised/loading palettes.
     val view = LocalView.current
     SideEffect {
         RelayRefresh.activePalette = palette
         RelayRefresh.activeShapeScale = shapeScale
-        AppearanceNightMode.applyResolved(
-            themePreference = themePreference,
-            appThemeId = appTheme.id,
-            customTheme = customTheme,
-        )
         if (!view.isInEditMode) {
             val activity = view.context as? Activity
             if (activity != null) {

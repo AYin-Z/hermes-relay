@@ -32,6 +32,7 @@ import com.hermesandroid.relay.auth.PairedDeviceInfo
 import com.hermesandroid.relay.auth.PairedSession
 import com.hermesandroid.relay.data.AgentDisplay
 import com.hermesandroid.relay.data.AppearancePreferences
+import com.hermesandroid.relay.data.PersistedAppearance
 import com.hermesandroid.relay.data.CustomThemePreset
 import com.hermesandroid.relay.data.DataManager
 import com.hermesandroid.relay.data.DemoContent
@@ -2148,6 +2149,12 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     // Backward compat: expose relay state as connectionState
     @Deprecated("Use relayConnectionState", replaceWith = ReplaceWith("relayConnectionState"))
     val connectionState: StateFlow<ConnectionState> = relayConnectionState
+
+    // One snapshot from the DataStore emission that also releases splash
+    // readiness. The app root must not compose a first frame from separately
+    // hydrated theme, preset, font, and shape StateFlows.
+    private val _appearance = MutableStateFlow(PersistedAppearance())
+    internal val appearance: StateFlow<PersistedAppearance> = _appearance.asStateFlow()
 
     // Theme preference — light/dark/auto mode axis.
     val theme: StateFlow<String> = application.relayDataStore.data
@@ -5103,6 +5110,10 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
             var prevApiKey: String? = null
 
             application.relayDataStore.data.collect { preferences ->
+                val persistedAppearance = AppearancePreferences.decode(preferences)
+                _appearance.value = persistedAppearance
+                AppearanceNightMode.applyFromAppearance(persistedAppearance)
+
                 // Restore insecure mode
                 val insecure = preferences[KEY_INSECURE_MODE] ?: false
                 connectionManager.setInsecureMode(insecure)
@@ -5131,10 +5142,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                 if (lastSeen != null && lastSeen != currentVersion) {
                     _showWhatsNew.value = true
                 }
-
-                // Lock DayNight to the saved appearance before the splash drops
-                // so the first real frame matches Appearance (not system dark).
-                AppearanceNightMode.applyFromPreferences(preferences)
 
                 // Mark ready after first DataStore emission (UI can render)
                 if (!_isReady.value) {
@@ -8385,11 +8392,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setTheme(theme: String) {
         val normalized = AppearanceNightMode.normalizePreference(theme)
-        AppearanceNightMode.applyResolved(
-            themePreference = normalized,
-            appThemeId = appTheme.value,
-            customTheme = activeCustomTheme.value,
-        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 preferences[AppearancePreferences.themeKey] = normalized
@@ -8398,11 +8400,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setAppTheme(themeId: String) {
-        AppearanceNightMode.applyResolved(
-            themePreference = theme.value,
-            appThemeId = themeId,
-            customTheme = null,
-        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 preferences[AppearancePreferences.appThemeKey] = themeId
@@ -8528,13 +8525,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
 
     fun saveCustomTheme(preset: CustomThemePreset, select: Boolean = true) {
         val normalized = preset.normalized() ?: return
-        if (select) {
-            AppearanceNightMode.applyResolved(
-                themePreference = normalized.mode,
-                appThemeId = normalized.appThemeId,
-                customTheme = normalized,
-            )
-        }
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 val current = AppearancePreferences.decodeCustomThemes(
@@ -8575,11 +8565,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                     preferences[AppearancePreferences.themeKey] = "auto"
                     preferences[AppearancePreferences.shapeKey] = AppearanceShape.DEFAULT.id
                     preferences.remove(AppearancePreferences.accentKey)
-                    AppearanceNightMode.applyResolved(
-                        themePreference = "auto",
-                        appThemeId = AppThemes.DEFAULT_ID,
-                        customTheme = null,
-                    )
                 }
             }
         }
@@ -8590,11 +8575,6 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun resetAppearanceTheme() {
-        AppearanceNightMode.applyResolved(
-            themePreference = "auto",
-            appThemeId = AppThemes.DEFAULT_ID,
-            customTheme = null,
-        )
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
                 preferences[AppearancePreferences.appThemeKey] = AppThemes.DEFAULT_ID
