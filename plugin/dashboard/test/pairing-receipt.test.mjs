@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import QRCode from "qrcode";
 
 import { pairingQrRenderOptions } from "../src/lib/pairing-qr.mjs";
 
@@ -15,9 +16,23 @@ test("pairing QR keeps integer modules and a four-module quiet zone", () => {
   assert.deepEqual(pairingQrRenderOptions(), {
     scale: 4,
     margin: 4,
-    errorCorrectionLevel: "M",
+    errorCorrectionLevel: "L",
   });
   assert.equal(Object.hasOwn(pairingQrRenderOptions(), "width"), false);
+});
+
+test("certificate-bearing pairing invite fits the Dashboard QR renderer", () => {
+  const payload = JSON.stringify({
+    hermes: 2,
+    endpoints: [{ role: "plugin_proxy", proxy: {
+      url: "https://relay.example:9443",
+      cert_der: "a".repeat(2500),
+      pin_sha256: "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    } }],
+  });
+  assert.throws(() => QRCode.create(payload, { errorCorrectionLevel: "M" }), /too big/i);
+  const qr = QRCode.create(payload, pairingQrRenderOptions());
+  assert.ok(qr.version <= 40);
 });
 
 test("only Dashboard ingress Relay auth challenges are healthy", () => {

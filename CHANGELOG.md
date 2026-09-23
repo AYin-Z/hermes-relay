@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Dashboard pairing QR codes support larger certificate-bearing Secure Link invites.
 - Secure Link preserves Gateway ticket authentication and Dashboard login paths, bounds rewritten responses, and serves compatible health information without additional loopback probes.
 - Android Secure Link enforces the paired certificate pin for HTTP, Gateway, and voice traffic, retains the correct TLS policy during Gateway route changes, and displays the active HTTPS Dashboard route.
 - Android cold start restores the saved Appearance palette and platform light/dark mode before the first app frame.

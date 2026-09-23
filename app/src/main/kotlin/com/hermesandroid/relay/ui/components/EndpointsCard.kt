@@ -429,11 +429,6 @@ private fun EndpointRow(
                             color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.secure_link_auth_note),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
