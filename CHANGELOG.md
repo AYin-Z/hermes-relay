@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Android Chat can open the model picker before the first turn, loads Gateway models when opened, and distinguishes loading, unavailable, and empty catalogs.
 - Secure Link configuration failures leave ordinary Relay available; route details and pairing previews resolve the advertised service namespaces.
 - Dashboard pairing QR codes support larger certificate-bearing Secure Link invites.
 - Secure Link preserves Gateway ticket authentication and Dashboard login paths, bounds rewritten responses, and serves compatible health information without additional loopback probes.

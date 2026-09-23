@@ -2796,6 +2796,7 @@
     <string name="model_picker_title">モデル</string>
     <string name="model_picker_search">モデルまたはプロバイダーを検索&#8230;</string>
     <string name="model_picker_empty">検索に一致するモデルはありません</string>
+    <string name="model_picker_no_models">利用可能なモデルがありません。更新してください。</string>
 
     <!-- InjectedContextSheet -->
     <string name="context_sheet_agent_sees">エージェントが見ているもの</string>

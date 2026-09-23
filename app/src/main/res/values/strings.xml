@@ -3180,6 +3180,7 @@
     <string name="model_picker_title">Model</string>
     <string name="model_picker_search">Search models or providers&#8230;</string>
     <string name="model_picker_empty">No models match your search</string>
+    <string name="model_picker_no_models">No models available. Try Refresh.</string>
 
     <!-- InjectedContextSheet -->
     <string name="context_sheet_agent_sees">What the agent sees</string>

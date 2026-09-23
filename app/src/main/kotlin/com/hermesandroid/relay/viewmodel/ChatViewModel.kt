@@ -1127,6 +1127,9 @@ class ChatViewModel : ViewModel() {
         modelSelectionRevision.incrementAndGet()
         _modelSelectionConfirmation.value = null
         modelOptionsGeneration.incrementAndGet()
+        _modelOptionsLoading.value = false
+        _modelOptionsRefreshing.value = false
+        _modelOptionsError.value = null
         val cached = modelOptionsByProfile[profileKey]
         _modelProviders.value = cached?.providers.orEmpty()
         relayCapabilityGeneration.incrementAndGet()
@@ -1144,6 +1147,10 @@ class ChatViewModel : ViewModel() {
     /** True only during an explicit user-requested dynamic model catalog refresh. */
     private val _modelOptionsRefreshing = MutableStateFlow(false)
     val modelOptionsRefreshing: StateFlow<Boolean> = _modelOptionsRefreshing.asStateFlow()
+    private val _modelOptionsLoading = MutableStateFlow(false)
+    val modelOptionsLoading: StateFlow<Boolean> = _modelOptionsLoading.asStateFlow()
+    private val _modelOptionsError = MutableStateFlow<String?>(null)
+    val modelOptionsError: StateFlow<String?> = _modelOptionsError.asStateFlow()
 
     /** Current gateway model from `model.options`, used when no Android override is active. */
     private val _gatewayCurrentModel = MutableStateFlow("")
@@ -1231,16 +1238,20 @@ class ChatViewModel : ViewModel() {
         val gateway = gatewayClient ?: run {
             android.util.Log.i("ChatViewModel", "refreshModelOptions: no gateway client")
             if (refresh) _modelOptionsRefreshing.value = false
+            _modelOptionsLoading.value = false
+            _modelOptionsError.value = "Gateway unavailable."
             return
         }
-        if (refresh && _modelOptionsRefreshing.value) return
+        if (_modelOptionsRefreshing.value) return
         if (refresh) _modelOptionsRefreshing.value = true
+        _modelOptionsLoading.value = true
+        _modelOptionsError.value = null
         val generation = modelOptionsGeneration.incrementAndGet()
         val profileKey = modelOptionsProfileKey()
         viewModelScope.launch {
             gateway.modelOptions(refresh = refresh).fold(
                 onSuccess = {
-                    if (!isCurrentModelOptionsResponse(
+                    if (gatewayClient !== gateway || !isCurrentModelOptionsResponse(
                             generation,
                             modelOptionsGeneration.get(),
                             profileKey,
@@ -1273,12 +1284,22 @@ class ChatViewModel : ViewModel() {
                 },
                 onFailure = {
                     android.util.Log.w("ChatViewModel", "model.options failed: ${it.message}")
-                    if (refresh) {
-                        _transientNotice.tryEmit("Couldn't refresh models: ${it.message ?: "unknown error"}")
+                    if (gatewayClient === gateway && isCurrentModelOptionsResponse(
+                            generation, modelOptionsGeneration.get(),
+                            profileKey, modelOptionsProfileKey(),
+                        )
+                    ) {
+                        _modelOptionsError.value = it.message ?: "Model catalog unavailable."
+                        if (refresh) {
+                            _transientNotice.tryEmit("Couldn't refresh models: ${it.message ?: "unknown error"}")
+                        }
                     }
                 },
             )
-            if (refresh) _modelOptionsRefreshing.value = false
+            if (gatewayClient === gateway && generation == modelOptionsGeneration.get()) {
+                _modelOptionsLoading.value = false
+                if (refresh) _modelOptionsRefreshing.value = false
+            }
         }
     }
 
@@ -1513,6 +1534,9 @@ class ChatViewModel : ViewModel() {
     ) {
         val client = apiClient ?: return
         val generation = modelOptionsGeneration.incrementAndGet()
+        _modelOptionsLoading.value = false
+        _modelOptionsRefreshing.value = false
+        _modelOptionsError.value = null
         val profileKey = modelOptionsProfileKey()
         viewModelScope.launch {
             val providerResult = client.getProviderModelOptions()
@@ -2122,6 +2146,9 @@ class ChatViewModel : ViewModel() {
         // what the agent actually runs. The next session.create then binds the
         // profile's own model.
         modelOptionsGeneration.incrementAndGet()
+        _modelOptionsLoading.value = false
+        _modelOptionsRefreshing.value = false
+        _modelOptionsError.value = null
         _modelProviders.value = emptyList()
         _apiModelOptions.value = emptyList()
         _availableModels.value = emptyList()
@@ -2732,6 +2759,10 @@ class ChatViewModel : ViewModel() {
         val previousClient = gatewayClient
         val changed = previousClient !== client
         if (changed) {
+            modelOptionsGeneration.incrementAndGet()
+            _modelOptionsLoading.value = false
+            _modelOptionsRefreshing.value = false
+            _modelOptionsError.value = null
             clearProjectedBackgroundProcesses()
             sessionActivityPollJob?.cancel()
             sessionActivityPollJob = null
@@ -5420,6 +5451,9 @@ class ChatViewModel : ViewModel() {
     /** Clear server-owned catalogs before a different connection starts loading. */
     fun resetConnectionCatalogs() {
         modelOptionsGeneration.incrementAndGet()
+        _modelOptionsLoading.value = false
+        _modelOptionsRefreshing.value = false
+        _modelOptionsError.value = null
         modelOptionsByProfile.clear()
         apiSessionModelLocks.clear()
         _availableSkills.value = emptyList()

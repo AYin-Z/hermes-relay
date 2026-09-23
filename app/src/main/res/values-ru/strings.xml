@@ -2776,6 +2776,7 @@
     <string name="model_picker_title">Модель</string>
     <string name="model_picker_search">Поиск моделей или поставщиков\&amp;#8230;</string>
     <string name="model_picker_empty">Нет моделей, соответствующих вашему запросу</string>
+    <string name="model_picker_no_models">Нет доступных моделей. Попробуйте обновить список.</string>
     <string name="context_sheet_agent_sees">Что видит агент</string>
     <string name="context_sheet_transparency">Точный дополнительный контекст, добавляемый к вашему следующему ходу, для прозрачности.</string>
     <string name="context_sheet_persona">Персона / профиль</string>

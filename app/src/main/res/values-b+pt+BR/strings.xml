@@ -2671,6 +2671,7 @@
     <string name="model_picker_title">Modelo</string>
     <string name="model_picker_search">Pesquisar modelos ou provedores…</string>
     <string name="model_picker_empty">Nenhum modelo corresponde à pesquisa</string>
+    <string name="model_picker_no_models">Nenhum modelo disponível. Tente atualizar.</string>
     <!-- InjectedContextSheet -->
     <string name="context_sheet_agent_sees">O que o agente vê</string>
     <string name="context_sheet_transparency">O contexto adicional exato adicionado ao início do próximo turno, para transparência.</string>

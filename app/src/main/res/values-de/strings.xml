@@ -2788,6 +2788,7 @@
     <string name="model_picker_title">Modell</string>
     <string name="model_picker_search">Modelle oder Anbieter suchen&#8230;</string>
     <string name="model_picker_empty">Keine Modelle entsprechen deiner Suche</string>
+    <string name="model_picker_no_models">Keine Modelle verfügbar. Versuche es mit Aktualisieren.</string>
 
     <!-- InjectedContextSheet -->
     <string name="context_sheet_agent_sees">Was der Agent sieht</string>

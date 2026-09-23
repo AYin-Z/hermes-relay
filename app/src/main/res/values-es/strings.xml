@@ -2551,6 +2551,7 @@
     <string name="model_picker_title">Modelo</string>
     <string name="model_picker_search">Buscar modelos o proveedores…</string>
     <string name="model_picker_empty">Ningún modelo coincide con tu búsqueda</string>
+    <string name="model_picker_no_models">No hay modelos disponibles. Prueba a actualizar.</string>
     <string name="context_sheet_agent_sees">Lo que ve el agente</string>
     <string name="context_sheet_transparency">El contexto adicional exacto antepuesto a tu próximo turno, para mayor transparencia.</string>
     <string name="context_sheet_persona">Persona/perfil</string>
