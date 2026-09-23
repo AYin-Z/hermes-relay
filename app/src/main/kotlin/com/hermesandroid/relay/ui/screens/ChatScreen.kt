@@ -1119,7 +1119,9 @@ fun ChatScreen(
     val serverModelName by chatViewModel.serverModelName.collectAsState()
     val apiModelOptions by chatViewModel.apiModelOptions.collectAsState()
     val modelProviders by chatViewModel.modelProviders.collectAsState()
+    val modelOptionsLoading by chatViewModel.modelOptionsLoading.collectAsState()
     val modelOptionsRefreshing by chatViewModel.modelOptionsRefreshing.collectAsState()
+    val modelOptionsError by chatViewModel.modelOptionsError.collectAsState()
     val modelSelectionConfirmation by chatViewModel.modelSelectionConfirmation.collectAsState()
     val reasoningCapabilityRevision by chatViewModel.reasoningCapabilityRevision.collectAsState()
     val selectedModelOverride by chatViewModel.selectedModelOverride.collectAsState()
@@ -1454,6 +1456,11 @@ fun ChatScreen(
         composerDraftKey.sessionId,
     ) { mutableStateOf<Int?>(null) }
     var showModelSheet by remember { mutableStateOf(false) }
+    LaunchedEffect(showModelSheet, isGatewayTransport, currentSessionId, selectedProfile?.name, activeConnection?.id) {
+        if (showModelSheet && isGatewayTransport) {
+            chatViewModel.refreshModelOptions(catalogOnly = true)
+        }
+    }
     var showEffortSheet by remember { mutableStateOf(false) }
     var showAgentInfo by remember { mutableStateOf(false) }
     var showProfileShelf by remember { mutableStateOf(false) }
@@ -4338,8 +4345,9 @@ fun ChatScreen(
                 fallbackModelDetail,
                 serverDefaultModelDetail,
                 hasModelChoices,
+                isGatewayTransport,
             ) {
-                if (!hasModelChoices && fallbackModelDetail.isNullOrBlank()) {
+                if (!isGatewayTransport && !hasModelChoices && fallbackModelDetail.isNullOrBlank()) {
                     emptyList()
                 } else {
                     buildList {
@@ -4412,7 +4420,7 @@ fun ChatScreen(
                     value = compactModelChipLabel(currentModelForInput, modelDefaultLabel),
                     contentDescription = stringResource(R.string.cd_select_model),
                     options = it,
-                    enabled = chatReady && !isStreaming && it.size > 1,
+                    enabled = chatReady && !isStreaming && (isGatewayTransport || it.size > 1),
                 )
             }
             val normalizedEffort = normalizeReasoningEffortForInput(selectedReasoningEffort)
@@ -4778,7 +4786,9 @@ fun ChatScreen(
             if (showModelSheet) {
                 ModelPickerSheet(
                     options = modelPickerOptions,
+                    loading = modelOptionsLoading,
                     refreshing = modelOptionsRefreshing,
+                    error = modelOptionsError,
                     onRefresh = {
                         chatViewModel.refreshModelOptions(refresh = true, catalogOnly = true)
                     },

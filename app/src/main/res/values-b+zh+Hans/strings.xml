@@ -2782,6 +2782,7 @@
     <string name="model_picker_title">模型</string>
     <string name="model_picker_search">搜索模型或提供商…</string>
     <string name="model_picker_empty">没有匹配您搜索的模型</string>
+    <string name="model_picker_no_models">没有可用的模型。请尝试刷新。</string>
 
     <!-- InjectedContextSheet -->
     <string name="context_sheet_agent_sees">代理看到的内容</string>

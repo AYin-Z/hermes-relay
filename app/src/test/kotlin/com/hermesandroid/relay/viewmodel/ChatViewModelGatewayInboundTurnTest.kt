@@ -168,6 +168,79 @@ class ChatViewModelGatewayInboundTurnTest {
     }
 
     @Test
+    fun coldPickerLoadCanBeForceRefreshedWithoutAChatTurnAndLateResultCannotEraseIt() {
+        assertTrue(viewModel.modelProviders.value.isEmpty())
+        gatewayHarness.suppressAckMethods += "model.options"
+
+        viewModel.refreshModelOptions(catalogOnly = true)
+        val coldRequest = gatewayHarness.awaitPendingAck()
+        assertEquals("model.options", coldRequest.method)
+        assertTrue(viewModel.modelOptionsLoading.value)
+        assertFalse(viewModel.modelOptionsRefreshing.value)
+        assertTrue(gatewayHarness.rpcLog.none { it.first == "prompt.submit" || it.first == "session.create" })
+
+        viewModel.refreshModelOptions(refresh = true, catalogOnly = true)
+        val forcedRequest = gatewayHarness.awaitPendingAck()
+        assertEquals("model.options", forcedRequest.method)
+        assertTrue(viewModel.modelOptionsRefreshing.value)
+        assertEquals(
+            true,
+            (gatewayHarness.rpcLog.last { it.first == "model.options" }.second["refresh"] as? JsonPrimitive)?.content == "true",
+        )
+        gatewayHarness.releaseAck(forcedRequest, buildJsonObject {
+            put("providers", buildJsonArray {
+                add(buildJsonObject {
+                    put("slug", "openai")
+                    put("name", "OpenAI")
+                    put("models", buildJsonArray { add(JsonPrimitive("gpt-5.5")) })
+                    put("authenticated", true)
+                })
+            })
+            put("model", "gpt-5.5")
+            put("provider", "openai")
+        })
+        awaitCondition { viewModel.modelProviders.value.singleOrNull()?.models == listOf("gpt-5.5") }
+        assertFalse(viewModel.modelOptionsLoading.value)
+        assertFalse(viewModel.modelOptionsRefreshing.value)
+
+        gatewayHarness.releaseAck(coldRequest, buildJsonObject {
+            put("providers", buildJsonArray {})
+        })
+        shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS)
+        assertEquals(listOf("gpt-5.5"), viewModel.modelProviders.value.single().models)
+
+        viewModel.refreshModelOptions(refresh = true, catalogOnly = true)
+        val repeatedRefresh = gatewayHarness.awaitPendingAck()
+        assertEquals("model.options", repeatedRefresh.method)
+        gatewayHarness.releaseAck(repeatedRefresh, buildJsonObject {
+            put("providers", buildJsonArray {})
+        })
+        awaitCondition { !viewModel.modelOptionsLoading.value }
+        assertTrue(viewModel.modelProviders.value.isEmpty())
+    }
+
+    @Test
+    fun retiredConnectionCannotPublishLateColdCatalogOrKeepItsLoadingState() {
+        gatewayHarness.suppressAckMethods += "model.options"
+        viewModel.refreshModelOptions(catalogOnly = true)
+        val staleRequest = gatewayHarness.awaitPendingAck()
+        assertTrue(viewModel.modelOptionsLoading.value)
+
+        viewModel.updateGatewayClient(null)
+        assertFalse(viewModel.modelOptionsLoading.value)
+        gatewayHarness.releaseAck(staleRequest, buildJsonObject {
+            put("providers", buildJsonArray {
+                add(buildJsonObject {
+                    put("slug", "stale")
+                    put("models", buildJsonArray { add(JsonPrimitive("wrong-model")) })
+                })
+            })
+        })
+        shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS)
+        assertTrue(viewModel.modelProviders.value.isEmpty())
+    }
+
+    @Test
     fun attachingReadyGatewayDoesNotHydrateControlStateAheadOfSessions() {
         viewModel.updateGatewayClient(null)
         val eagerMethods = setOf("model.options", "commands.catalog", "config.get")
