@@ -16,6 +16,7 @@ import com.hermesandroid.relay.auth.AuthManager
 import com.hermesandroid.relay.auth.AuthState
 import com.hermesandroid.relay.ui.theme.AppFont
 import com.hermesandroid.relay.ui.theme.AppThemes
+import com.hermesandroid.relay.ui.theme.AppearanceNightMode
 import com.hermesandroid.relay.ui.theme.normalizeAccentHex
 import com.hermesandroid.relay.ui.theme.AppearanceShape
 import com.hermesandroid.relay.ui.components.avatar.PetImporter
@@ -31,6 +32,7 @@ import com.hermesandroid.relay.auth.PairedDeviceInfo
 import com.hermesandroid.relay.auth.PairedSession
 import com.hermesandroid.relay.data.AgentDisplay
 import com.hermesandroid.relay.data.AppearancePreferences
+import com.hermesandroid.relay.data.PersistedAppearance
 import com.hermesandroid.relay.data.CustomThemePreset
 import com.hermesandroid.relay.data.DataManager
 import com.hermesandroid.relay.data.DemoContent
@@ -2164,10 +2166,16 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     @Deprecated("Use relayConnectionState", replaceWith = ReplaceWith("relayConnectionState"))
     val connectionState: StateFlow<ConnectionState> = relayConnectionState
 
+    // One snapshot from the DataStore emission that also releases splash
+    // readiness. The app root must not compose a first frame from separately
+    // hydrated theme, preset, font, and shape StateFlows.
+    private val _appearance = MutableStateFlow(PersistedAppearance())
+    internal val appearance: StateFlow<PersistedAppearance> = _appearance.asStateFlow()
+
     // Theme preference — light/dark/auto mode axis.
     val theme: StateFlow<String> = application.relayDataStore.data
         .map { preferences ->
-            preferences[AppearancePreferences.themeKey] ?: "auto"
+            AppearanceNightMode.normalizePreference(preferences[AppearancePreferences.themeKey])
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "auto")
 
@@ -5118,6 +5126,10 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
             var prevApiKey: String? = null
 
             application.relayDataStore.data.collect { preferences ->
+                val persistedAppearance = AppearancePreferences.decode(preferences)
+                _appearance.value = persistedAppearance
+                AppearanceNightMode.applyFromAppearance(persistedAppearance)
+
                 // Restore insecure mode
                 val insecure = preferences[KEY_INSECURE_MODE] ?: false
                 connectionManager.setInsecureMode(insecure)
@@ -8397,9 +8409,10 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
     // --- Shared methods ---
 
     fun setTheme(theme: String) {
+        val normalized = AppearanceNightMode.normalizePreference(theme)
         viewModelScope.launch {
             getApplication<Application>().relayDataStore.edit { preferences ->
-                preferences[AppearancePreferences.themeKey] = theme
+                preferences[AppearancePreferences.themeKey] = normalized
             }
         }
     }

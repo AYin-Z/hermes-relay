@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Android cold start restores the saved Appearance palette and platform light/dark mode before the first app frame.
 - Android Gateway onboarding verifies Dashboard access without overstating Chat or voice readiness, explains common authentication setup failures, and requires exact-address consent before using HTTP. Custom Dashboard ports are accepted and shown throughout setup and route editing. (#604)
 - Android safely settles Gateway foreground-service starts before stopping local retention, preventing the startup/shutdown race reported in #603. Turning off always-on connectivity preserves active turns.
 - Android Standard Voice speaks live background completions in its active conversation after the original reply finishes. Stop and conversation changes discard pending speech. (#545)
