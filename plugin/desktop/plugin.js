@@ -477,7 +477,7 @@ export function createSecureLinkSetup(ctx) {
           jsx('textarea', { readOnly: true, rows: 3, value: invite, 'aria-label': 'Secure Link pairing invite', className: 'w-full rounded border border-(--ui-stroke-tertiary) bg-transparent p-2 font-mono text-xs' }),
           jsx(Button, { size: 'sm', onClick: () => copy(invite), children: copied ? 'Copied' : 'Copy invite' })
         ] }) : null,
-        jsx('details', { className: 'text-xs text-(--ui-text-tertiary)', children: [
+        jsxs('details', { className: 'text-xs text-(--ui-text-tertiary)', children: [
           jsx('summary', { children: 'Disable or recover' }),
           jsx('p', { children: 'Set RELAY_SECURE_LINK_ENABLED=0 (or use --no-secure-link), then restart the existing Relay owner. Keep its certificate/key to reuse the same route. Certificate or address changes require re-pairing.' })
         ] })
