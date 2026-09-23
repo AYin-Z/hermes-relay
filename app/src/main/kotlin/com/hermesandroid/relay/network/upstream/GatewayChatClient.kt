@@ -277,7 +277,7 @@ class GatewayChatClient(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val client: OkHttpClient = (okHttpClient ?: OkHttpClient())
+    private fun socketClient(base: OkHttpClient): OkHttpClient = base
         .newBuilder()
         // The 10s default connectTimeout is LAN-tuned; a remote dashboard
         // reached over Tailscale (DERP cold start) can take longer to complete
@@ -294,8 +294,19 @@ class GatewayChatClient(
      * being torn down — the in-flight turn's session is server-side and the
      * same shared gateway sits behind both routes.
      */
+    private data class RouteTransport(
+        val dashboard: DashboardApiClient,
+        val socket: OkHttpClient,
+    )
+
     @Volatile
-    private var dashboardClient: DashboardApiClient = initialDashboardClient
+    private var routeTransport = RouteTransport(
+        initialDashboardClient,
+        socketClient(okHttpClient ?: initialDashboardClient.okHttpClient),
+    )
+
+    private val dashboardClient: DashboardApiClient
+        get() = routeTransport.dashboard
 
     private val _connectionState = MutableStateFlow(GatewayConnectionState.Idle)
     val connectionState: StateFlow<GatewayConnectionState> = _connectionState.asStateFlow()
@@ -1001,7 +1012,7 @@ class GatewayChatClient(
     fun retarget(newDashboardClient: DashboardApiClient) {
         if (dashboardClient === newDashboardClient) return
         Log.i(TAG, "Gateway retargeting to a new route (turn active=${hasActiveTurn()})")
-        dashboardClient = newDashboardClient
+        routeTransport = RouteTransport(newDashboardClient, socketClient(newDashboardClient.okHttpClient))
         if (hasActiveTurn()) {
             retargetedThisTurn = activeTurn?.ended == false
             webSocket?.cancel()
@@ -3080,12 +3091,14 @@ class GatewayChatClient(
     }
 
     private suspend fun connectOnce() {
+        // Ticket, URL and TLS/auth policy must belong to one route snapshot.
+        val transport = routeTransport
         val connectStart = System.nanoTime()
         _processCapability.value = GatewayProcessCapability.Unknown
         _activeSessionCapability.value = GatewayActiveSessionCapability.Unknown
         _approvalModeCapability.value = GatewayApprovalModeCapability.Unknown
         _connectionState.value = GatewayConnectionState.MintingTicket
-        val ticket = dashboardClient.requestWsTicket().getOrElse { e ->
+        val ticket = transport.dashboard.requestWsTicket().getOrElse { e ->
             val statusCode = (e as? DashboardHttpException)?.statusCode
             val authFailure = statusCode in setOf(401, 403)
             val rateLimited = statusCode == 429
@@ -3108,8 +3121,15 @@ class GatewayChatClient(
             )
         }
         val ticketMs = (System.nanoTime() - connectStart) / 1_000_000
+        if (transport !== routeTransport) {
+            throw GatewayConnectAttemptException(
+                "Gateway route changed while minting a ticket",
+                GatewayConnectFailureStage.Ticket,
+                retryable = true,
+            )
+        }
         val socketProfile = currentSessionProfile()
-        val url = dashboardClient.gatewayWebSocketUrl(
+        val url = transport.dashboard.gatewayWebSocketUrl(
             ticket = ticket.ticket,
             profile = socketProfile,
         )
@@ -3122,7 +3142,7 @@ class GatewayChatClient(
         _connectionState.value = GatewayConnectionState.Connecting
         val ready = CompletableDeferred<Unit>()
         readySignal = ready
-        val socket = client.newWebSocket(
+        val socket = transport.socket.newWebSocket(
             Request.Builder().url(url).build(),
             createListener(ready),
         )

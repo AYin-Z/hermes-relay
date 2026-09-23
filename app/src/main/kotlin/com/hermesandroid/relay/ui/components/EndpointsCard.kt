@@ -71,6 +71,7 @@ import com.hermesandroid.relay.data.primaryRouteUrl
 import com.hermesandroid.relay.data.routeAuthority
 import com.hermesandroid.relay.network.shared.EndpointSurface
 import com.hermesandroid.relay.network.shared.RouteProbeOutcome
+import com.hermesandroid.relay.network.shared.pluginProxyRoutesOrNull
 import com.hermesandroid.relay.viewmodel.ConnectionViewModel
 import kotlinx.coroutines.launch
 import java.net.URI
@@ -429,11 +430,6 @@ private fun EndpointRow(
                             color = MaterialTheme.colorScheme.tertiary,
                         )
                     }
-                    Text(
-                        text = stringResource(R.string.secure_link_auth_note),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
 
@@ -582,10 +578,10 @@ private fun RouteSurfaceMap(
     outcomeFor: (EndpointSurface) -> RouteProbeOutcome? = { null },
     modifier: Modifier = Modifier,
 ) {
-    val dashboardUrl = candidate.dashboard?.url
-        ?: candidate.api?.url?.let(Connection::deriveDefaultDashboardUrl)
-    val apiUrl = candidate.api?.url
-    val relayUrl = candidate.relay?.url
+    val proxy = candidate.pluginProxyRoutesOrNull()
+    val dashboardUrl = candidate.gatewayRouteUrl()
+    val apiUrl = candidate.api?.url ?: proxy?.apiBaseUrl
+    val relayUrl = candidate.relay?.url ?: proxy?.relayWebSocketUrl
     val dashboardOutcome = outcomeFor(EndpointSurface.Dashboard)
     val apiOutcome = outcomeFor(EndpointSurface.Api)
     val relayOutcome = outcomeFor(EndpointSurface.Relay)

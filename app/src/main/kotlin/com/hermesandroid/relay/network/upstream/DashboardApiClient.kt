@@ -363,7 +363,7 @@ data class DashboardFetchedFile(
  */
 class DashboardApiClient(
     baseUrl: String,
-    private val okHttpClient: OkHttpClient = defaultClient(),
+    internal val okHttpClient: OkHttpClient = defaultClient(),
     private val ownsHttpClient: Boolean = true,
     private val json: Json = Json {
         ignoreUnknownKeys = true

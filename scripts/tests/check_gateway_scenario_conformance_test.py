@@ -193,6 +193,21 @@ class GatewayScenarioConformanceTest(unittest.TestCase):
             module.PROMPT_METHODS: PROMPT_METHODS_SOURCE,
             module.ACTIVE_SESSIONS: ACTIVE_SESSIONS_SOURCE,
             module.API_SERVER: API_SOURCE,
+            "hermes_cli/web_server_chat.py": '''
+_GATEWAY_WS_PROTOCOL = "hermes-gateway-v1"
+_GATEWAY_WS_TICKET_PROTOCOL_PREFIX = "hermes-gateway-ticket."
+def _gateway_ws_ticket_from_subprotocol(ws):
+    return ws.headers.get("sec-websocket-protocol"), "ok", "invalid"
+def _ws_auth_reason(ws):
+    ticket = _gateway_ws_ticket_from_subprotocol(ws) or ws.query_params.get("ticket")
+    consume_ticket(ticket)
+    ws._hermes_ws_subprotocol = _GATEWAY_WS_PROTOCOL
+    return None, "ticket-subprotocol"
+''',
+            "hermes_cli/web_routers/chat_ws.py": '''
+async def gateway_ws(ws):
+    await handle_ws(ws, subprotocol=getattr(ws, "_hermes_ws_subprotocol", None))
+''',
         }
         for relative, text in sources.items():
             path = self.root / relative
@@ -207,6 +222,34 @@ class GatewayScenarioConformanceTest(unittest.TestCase):
 
         self.assertEqual(module.ALL_CONTRACTS, tuple(result.contract for result in results))
         self.assertTrue(all(result.passed for result in results), results)
+
+    def test_ticket_protocol_requires_public_selection_and_single_use_admission(self):
+        for relative, before, after in (
+            ("hermes_cli/web_server_chat.py", "consume_ticket(ticket)", "accept(ticket)"),
+            ("hermes_cli/web_server_chat.py", "ws._hermes_ws_subprotocol = _GATEWAY_WS_PROTOCOL",
+             "ws._hermes_ws_subprotocol = ticket"),
+            ("hermes_cli/web_routers/chat_ws.py", "subprotocol=getattr", "ignored=getattr"),
+        ):
+            path = self.root / relative
+            original = path.read_text(encoding="utf-8")
+            with self.subTest(relative=relative, removed=before):
+                path.write_text(original.replace(before, after), encoding="utf-8")
+                self.assertFalse(module.audit_sources(self.root, (module.TICKET_PROTOCOL,))[0].passed)
+                path.write_text(original, encoding="utf-8")
+
+    def test_activate_accepts_verified_upstream_session_decorator(self):
+        path = self.root / module.SESSION_METHODS
+        wrapped = METHODS_SOURCE.replace('@method("session.activate")', '@_session_method("session.activate")')
+        wrapped = wrapped.replace('    session, error = _sess_nowait(params, rid)\n', '')
+        wrapped += '''
+_with_session = _session_arg(lambda params, rid: _sess_nowait(params, rid))
+def _session_method(name: str, *, live: bool = False):
+    return lambda fn: method(name)((_with_live_session if live else _with_session)(fn))
+'''
+        path.write_text(wrapped, encoding="utf-8")
+        self.assertTrue(module.audit_sources(self.root, (module.SESSION_ACTIVATE,))[0].passed)
+        path.write_text(wrapped.replace('_sess_nowait(params, rid)', '_sess(params, rid)'), encoding="utf-8")
+        self.assertFalse(module.audit_sources(self.root, (module.SESSION_ACTIVATE,))[0].passed)
 
     def test_missing_terminal_emit_fails_only_terminal_contract(self):
         path = self.root / module.SERVER

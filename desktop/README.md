@@ -16,6 +16,14 @@ subcommands provide scriptable chat, pairing, sessions, daemon management,
 grants, diagnostics, and desktop-tool routing. The optional systray is only a
 Windows management surface over those same commands and state files.
 
+Secure Link is enabled on the **server**, using Dashboard/Desktop Relay setup or
+the host-side `hermes relay secure-link` readiness command. This CLI+UI remains a
+client: use `hermes-relay pair --pair-qr '<signed invite>'` to import its authority,
+certificate, and pin. A bare address or pairing code cannot establish new Secure
+Link trust. The tray and CLI use the same saved host trust; neither enables the
+server, rotates its certificate, or treats transport reachability as Dashboard
+sign-in. Generate a fresh invite and explicitly re-pair after identity changes.
+
 > **What this is not:** A local Hermes install. Point it at an existing Hermes-Relay server (`ws://host:8767`). For the full TUI with Ink, see the sibling package [`ui-tui`](../../hermes-agent-tui-smoke/ui-tui) in the hermes-agent fork.
 
 ## Desktop surfaces

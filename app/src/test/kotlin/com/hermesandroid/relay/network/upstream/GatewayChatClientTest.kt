@@ -20,6 +20,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -2085,6 +2086,85 @@ class GatewayChatClientTest {
         assertTrue(unreachableMarked)
         assertFalse(signInRequiredMarked)
         assertEquals(GatewayReconnectDisposition.Terminal, client.reconnectDisposition.value)
+    }
+
+    @Test
+    fun `active route retarget replaces socket policy and preserves the live turn`() {
+        val replacement = GatewayClientHarness()
+        fun dashboardFor(target: GatewayClientHarness): DashboardApiClient = DashboardApiClient(
+            baseUrl = target.server.url("/").toString(),
+            okHttpClient = OkHttpClient.Builder().addInterceptor { chain ->
+                if (chain.request().url.port != target.server.port) {
+                    throw java.io.IOException("transport belongs to another paired authority")
+                }
+                chain.proceed(chain.request())
+            }.build(),
+        )
+        client.shutdown()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        client = GatewayChatClient(
+            initialDashboardClient = dashboardFor(harness),
+            scope = scope,
+            callbackDispatcher = { it() },
+            midTurnRejoinWindowMs = 3_000L,
+        )
+        try {
+            val recorder = Recorder()
+            client.sendTurn(null, "follow the route", null, recorder.callbacks) {
+                recorder.preflightFailures += it
+            }
+            harness.awaitServerSocket()
+            harness.awaitRpc("prompt.submit")
+            client.retarget(dashboardFor(replacement))
+            val moved = replacement.awaitServerSocket()
+            val activation = replacement.awaitRpc("session.activate")
+            assertEquals("live-1", activation["session_id"]?.jsonPrimitive?.content)
+            moved.send(replacement.eventFrame("message.complete", buildJsonObject {
+                put("text", "Finished on the new route")
+            }, "live-1"))
+            assertTrue(recorder.completeLatch.await(5, TimeUnit.SECONDS))
+            assertTrue(recorder.errors.isEmpty())
+            assertTrue(recorder.preflightFailures.isEmpty())
+            assertFalse(replacement.rpcLog.any { it.first == "prompt.submit" })
+        } finally {
+            client.shutdown()
+            replacement.shutdown()
+        }
+    }
+
+    @Test
+    fun `retarget during ticket mint discards old ticket before socket upgrade`() = runBlocking {
+        val replacement = GatewayClientHarness()
+        val mintStarted = CountDownLatch(1)
+        val releaseMint = CountDownLatch(1)
+        val oldTransport = OkHttpClient.Builder().addInterceptor { chain ->
+            val response = chain.proceed(chain.request())
+            if (chain.request().url.encodedPath.endsWith("/ws-ticket")) {
+                mintStarted.countDown()
+                check(releaseMint.await(5, TimeUnit.SECONDS))
+            }
+            response
+        }.build()
+        client.shutdown()
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        client = GatewayChatClient(
+            initialDashboardClient = DashboardApiClient(harness.server.url("/").toString(), oldTransport),
+            scope = scope,
+            callbackDispatcher = { it() },
+        )
+        try {
+            val pending = async(Dispatchers.IO) { client.prewarmAwait("stored-session") }
+            assertTrue(mintStarted.await(3, TimeUnit.SECONDS))
+            client.retarget(DashboardApiClient(replacement.server.url("/").toString()))
+            releaseMint.countDown()
+            assertTrue(pending.await())
+            assertEquals(1, replacement.ticketMints.get())
+            assertTrue("old ticket must never dial a socket", harness.serverSockets.isEmpty())
+        } finally {
+            releaseMint.countDown()
+            client.shutdown()
+            replacement.shutdown()
+        }
     }
 
     @Test
