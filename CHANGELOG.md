@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- Provider usage shows Grok subscription periods, product usage, and on-demand credit state for hosts signed in with `xai-oauth`. Android shows SuperGrok by default when no provider visibility choice is saved.
 - Guided Secure Link setup in Dashboard and the Desktop Relay pane, with shared read-only host CLI checks, restart instructions, and signed pairing handoff.
 
 ### Fixed
