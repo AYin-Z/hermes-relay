@@ -1198,12 +1198,18 @@ fun ActiveCardSecurityPosture(
     val authState by connectionViewModel.authState.collectAsState()
     val currentPairedSession by connectionViewModel.currentPairedSession.collectAsState()
     val pairedDevices by connectionViewModel.pairedDevices.collectAsState()
+    // Live dashboard path (Secure Link / preferred route), not only the saved
+    // plain :9119 configuredDashboardUrl that pairing still stores alongside.
+    val effectiveDashboardUrl by connectionViewModel.effectiveDashboardUrl.collectAsState()
+    val dashboardDisplayUrl = effectiveDashboardUrl.trim().trimEnd('/').ifBlank {
+        activeConnection?.resolvedDashboardUrl.orEmpty()
+    }
 
     val dashboardStatus = activeConnection?.dashboardLastStatus
     val dashboardSignInRequired = dashboardStatus?.authRequired == true &&
         dashboardStatus.authenticated != true
     val dashboardValue = when {
-        activeConnection?.resolvedDashboardUrl.isNullOrBlank() ->
+        dashboardDisplayUrl.isBlank() ->
             stringResource(R.string.active_section_not_configured)
         dashboardStatus == null -> stringResource(R.string.active_section_not_checked)
         !dashboardStatus.reachable -> stringResource(R.string.active_section_unreachable)
@@ -1255,7 +1261,7 @@ fun ActiveCardSecurityPosture(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            text = activeConnection?.resolvedDashboardUrl.orEmpty().ifBlank {
+                            text = dashboardDisplayUrl.ifBlank {
                                 stringResource(R.string.active_section_not_configured)
                             },
                             style = MaterialTheme.typography.bodySmall,

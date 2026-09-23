@@ -1178,9 +1178,9 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
 
     private val endpointResolver = EndpointResolver(
         httpClient = endpointProbeClient,
-        clientForCandidate = { candidate ->
+        clientForCandidate = { candidate, probeRequestUrl ->
+            val tokenProvider = { (authManager.authState.value as? AuthState.Paired)?.token }
             candidate.pluginProxyRoutesOrNull()?.let { proxy ->
-                val tokenProvider = { (authManager.authState.value as? AuthState.Paired)?.token }
                 if (candidate.hermesReachRouteOrNull() != null) {
                     buildHermesReachClient(
                         baseBuilder = endpointProbeClient.newBuilder(),
@@ -1195,6 +1195,28 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                         sessionTokenProvider = tokenProvider,
                     )
                 }
+            } ?: run {
+                // LAN sometimes stores Secure Link relay URL (wss://…:9443/…).
+                // Pin ONLY when this probe actually hits that authority —
+                // not for plain dashboard :9119 / API :8642 on the same
+                // candidate (pin client's authority guard → IOException).
+                val requestUrl = probeRequestUrl?.trim().orEmpty()
+                if (requestUrl.isBlank()) return@run null
+                val targetAuthority = com.hermesandroid.relay.auth.CertPinStore
+                    .hostPortFromUrl(requestUrl)
+                    ?: return@run null
+                activeConnection.value?.routeCandidates.orEmpty()
+                    .mapNotNull { it.pluginProxyRoutesOrNull() }
+                    .firstOrNull { routes ->
+                        routes.authority.equals(targetAuthority, ignoreCase = true)
+                    }
+                    ?.let { routes ->
+                        buildPluginProxyClient(
+                            baseBuilder = endpointProbeClient.newBuilder(),
+                            routes = routes,
+                            sessionTokenProvider = tokenProvider,
+                        )
+                    }
             }
         },
         context = application,
@@ -1285,6 +1307,15 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
             (authManager.authState.value as? AuthState.Paired)?.token
         },
         dashboardHttpClientProvider = ::dashboardHttpClientForRelayIngress,
+        // Secure Link relay HTTP must use the same pin TrustManager as WSS;
+        // default OkHttp only has the system CA store and rejects the leaf.
+        pluginProxyHttpClientProvider = { url ->
+            pluginProxyClientForUrl(
+                url = url,
+                baseClient = relayOkHttp,
+                includeRelaySessionHeader = false,
+            )
+        },
     )
 
     // Pairing-management collaborator — owns the paired-devices list
@@ -7304,6 +7335,13 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
                     },
                     apiBearerTokenProvider = { authManager.getApiKey() },
                     dashboardHttpClientProvider = ::dashboardHttpClientForRelayIngress,
+                    pluginProxyHttpClientProvider = { url ->
+                        pluginProxyClientForUrl(
+                            url = url,
+                            baseClient = relayOkHttp,
+                            includeRelaySessionHeader = false,
+                        )
+                    },
                     dashboardIngressWebSocketRequestProvider = ::dashboardRelayRequestForIngress,
                 ).getVoiceConfig()
             } else {
