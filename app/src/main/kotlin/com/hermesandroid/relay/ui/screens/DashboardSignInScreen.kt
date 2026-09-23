@@ -317,7 +317,7 @@ fun DashboardSignInScreen(
                 ?.takeIf { it.isNotEmpty() }
                 ?: status.authProviderDetails
             authFlows = status.authFlows
-            var session = if (status.authRequired) client.currentSession().getOrNull() else null
+            var session = client.currentSession().getOrNull()
             var ticketAvailable = if (session?.authenticated == true) {
                 client.requestWsTicket().isSuccess
             } else {
@@ -359,10 +359,12 @@ fun DashboardSignInScreen(
                 gatewayTicketAvailable = ticketAvailable,
             )
             if (
-                !status.authRequired ||
                 session?.let { dashboardAuthenticationReady(it, ticketAvailable) } == true
             ) {
                 finishAuthentication()
+            } else if (!status.authRequired) {
+                actionMessage = resources.getString(R.string.dashboard_local_auth_help)
+                actionIsError = true
             }
         } finally {
             loading = false
@@ -432,11 +434,6 @@ fun DashboardSignInScreen(
             DashboardRedirectAuthMode.WebView
         ) {
             embeddedFallbackFromNative = false
-            oauthProvider = provider
-            return
-        }
-        if (!isNativeDashboardTransportEligible(dashboardUrl)) {
-            embeddedFallbackFromNative = true
             oauthProvider = provider
             return
         }

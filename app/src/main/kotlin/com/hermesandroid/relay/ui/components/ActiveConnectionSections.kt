@@ -2037,11 +2037,12 @@ fun ActiveCardRoutesSection(
                 original = routeEditorOriginal,
                 relayEnabled = connection.relayUrl.isNotBlank() ||
                     endpoints.any { it.relay != null },
-                onSave = { role, dashboardUrl, onResult ->
+                onSave = { role, dashboardUrl, httpConsentOrigin, onResult ->
                     connectionViewModel.saveExtraRoute(
                         role = role,
                         dashboardUrl = dashboardUrl,
                         original = routeEditorOriginal,
+                        httpConsentOrigin = httpConsentOrigin,
                         onResult = onResult,
                     )
                 },

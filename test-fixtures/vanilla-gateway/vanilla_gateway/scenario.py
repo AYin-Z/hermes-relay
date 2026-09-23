@@ -31,6 +31,7 @@ class Scenario:
     active_list_supported: bool
     active_list_snapshots: tuple[tuple[dict[str, Any], ...], ...]
     session_initialization_error: str | None = None
+    dashboard_setup: bool = False
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Scenario":
@@ -41,6 +42,8 @@ class Scenario:
         if not isinstance(raw["turns"], list):
             raise ScenarioError("turns must be a list")
         initialization_error = raw.get("session_initialization_error")
+        if not isinstance(raw.get("dashboard_setup", False), bool):
+            raise ScenarioError("dashboard_setup must be a boolean")
         if initialization_error is not None and (
             not isinstance(initialization_error, str) or not initialization_error or len(initialization_error) > 500
         ):
@@ -141,6 +144,7 @@ class Scenario:
             active_list_supported=active_list_supported,
             active_list_snapshots=tuple(validated_snapshots),
             session_initialization_error=initialization_error,
+            dashboard_setup=raw.get("dashboard_setup", False),
         )
 
 

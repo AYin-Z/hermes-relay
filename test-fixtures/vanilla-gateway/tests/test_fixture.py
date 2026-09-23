@@ -18,6 +18,34 @@ from vanilla_gateway.evidence import EvidenceLog  # noqa: E402
 
 
 class FixtureTestCase(unittest.IsolatedAsyncioTestCase):
+    async def test_dashboard_setup_signin_expiry_and_loopback_are_distinct(self) -> None:
+        fixture, base_url = await self.start("dashboard_onboarding")
+        async with self.session.get(f"{base_url}/api/status") as response:
+            self.assertTrue((await response.json())["auth_required"])
+        async with self.session.get(f"{base_url}/api/auth/me") as response:
+            self.assertEqual(401, response.status)
+        async with self.session.post(f"{base_url}/auth/password-login", json={
+            "username": "fixture", "password": "fixture",
+        }) as response:
+            self.assertEqual(200, response.status)
+            cookie = response.cookies["hermes_session"].value
+        headers = {"Cookie": f"hermes_session={cookie}"}
+        async with self.session.get(f"{base_url}/api/auth/me", headers=headers) as response:
+            self.assertTrue((await response.json())["authenticated"])
+        async with self.session.post(f"{base_url}/api/auth/ws-ticket", headers=headers) as response:
+            self.assertIn("ticket", await response.json())
+        async with self.session.post(f"{base_url}/__fixture__/auth", json={"mode": "expired"}):
+            pass
+        async with self.session.get(f"{base_url}/api/auth/me", headers=headers) as response:
+            self.assertEqual("session_expired", (await response.json())["error"])
+        async with self.session.post(f"{base_url}/__fixture__/auth", json={"mode": "loopback"}):
+            pass
+        async with self.session.get(f"{base_url}/api/status") as response:
+            self.assertFalse((await response.json())["auth_required"])
+        async with self.session.get(f"{base_url}/api/auth/me", headers=headers) as response:
+            self.assertEqual({"detail": "Unauthorized"}, await response.json())
+        self.assertEqual([], fixture._history_rows)
+
     async def test_clarify_batch_requires_each_qid_and_replays_partial_progress(self) -> None:
         fixture, base_url = await self.start("clarify_batch")
         ws, _ = await self.connect(base_url)
