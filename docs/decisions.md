@@ -4444,3 +4444,32 @@ Source and merged-manifest validation enforce this boundary. Foreground-service
 lifecycle tests and rendered permission/Stop controls supplement, but do not
 replace, device tests or a reviewed Play test-track submission. See
 [Play declarations](play-store-listing.md#voice-overlay-review-before-production).
+
+
+## ADR 75 — Dashboard HTTP exceptions require exact-origin user consent
+
+**Status:** Accepted (2026-09-18).
+
+**Context.** Address-range classification does not establish whether traffic
+travels through a custom VPN. It blocked adding or migrating a Dashboard using
+HTTP on a non-private-range address, even when the operator intentionally routed
+that address through a private tunnel.
+
+**Decision.** Keep HTTPS as the default. Offer an unchecked, explicit warning
+and acknowledgement when a user configures an otherwise-restricted HTTP
+Dashboard address. Persist consent only on that connection for the exact HTTP
+scheme, host and port. A different origin requires new consent; editing retires
+the old origin's exception and Dashboard authentication without replacing the
+connection identity or deleting drafts/history. Setup, route editing and native
+authentication share this authority. No Relay grant or global insecure-mode flag
+is reused. Consent is not a VPN or encryption verdict.
+
+The app does not detect or enforce VPN protection. The user accepts cleartext
+exposure if the tunnel drops or traffic uses another route. Authentication still
+uses the upstream Dashboard contract; a public status response cannot prove
+protected access or Gateway readiness. Generic 401s retain sign-in/retry recovery;
+loopback/public_url guidance is conditional on additional setup evidence.
+
+**Consequences.** Advanced network setups are usable with explicit assumed risk.
+The exception must not cross connection or credential-origin boundaries. VPN
+monitoring or route enforcement would be separate work, not an implied guarantee.

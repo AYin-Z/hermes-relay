@@ -2157,9 +2157,10 @@ fun sameDashboardBase(candidate: String, trusted: String): Boolean {
 fun trustedDashboardBearerAuthOrNull(
     candidate: String,
     trusted: String,
+    httpConsentOrigins: Set<String> = emptySet(),
     tokenStoreProvider: () -> NativeDashboardTokenStore,
 ): DashboardBearerAuth? =
-    if (isNativeDashboardTransportEligible(candidate) &&
+    if (isNativeDashboardTransportEligible(candidate, httpConsentOrigins) &&
         sameDashboardBase(candidate, trusted)
     ) {
         DashboardBearerAuth(candidate, tokenStoreProvider())

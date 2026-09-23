@@ -111,6 +111,8 @@ class NativeDashboardAuthClient(
     private val tokenStore: NativeDashboardTokenStore,
     private val client: OkHttpClient = OkHttpClient.Builder()
         .dns(RetryingNativeAuthDns())
+        .followRedirects(false)
+        .followSslRedirects(false)
         .retryOnConnectionFailure(false)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -390,14 +392,27 @@ internal class NativeDashboardCallbackException(
     val retryable: Boolean = true,
 ) : IOException(message)
 
-internal fun isNativeDashboardTransportEligible(baseUrl: String): Boolean {
+internal fun isNativeDashboardTransportEligible(
+    baseUrl: String,
+    httpConsentOrigins: Set<String> = emptySet(),
+): Boolean {
     val url = baseUrl.trim().trimEnd('/').toHttpUrlOrNull() ?: return false
     return url.scheme == "https" ||
         (
             url.scheme == "http" &&
-                (url.host == "127.0.0.1" || isPrivateNetworkLiteral(url.host))
+                (url.host == "127.0.0.1" || isPrivateNetworkLiteral(url.host) ||
+                    com.hermesandroid.relay.data.dashboardHttpConsentMatches(baseUrl, httpConsentOrigins))
             )
 }
+
+/** A cleartext exception never authorizes following a request onto another origin. */
+internal fun dashboardClientWithHttpConsent(
+    client: OkHttpClient,
+    baseUrl: String,
+    httpConsentOrigins: Set<String>,
+): OkHttpClient = if (com.hermesandroid.relay.data.dashboardHttpConsentMatches(baseUrl, httpConsentOrigins)) {
+    client.newBuilder().followRedirects(false).followSslRedirects(false).build()
+} else client
 
 /**
  * Hermes already permits explicitly configured HTTP dashboard sessions on
