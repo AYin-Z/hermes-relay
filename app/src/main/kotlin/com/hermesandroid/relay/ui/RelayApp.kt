@@ -1095,14 +1095,16 @@ fun RelayApp() {
         }
     }
 
-    // Observe theme preference
-    val themePreference by connectionViewModel.theme.collectAsState()
-    val appThemeId by connectionViewModel.appTheme.collectAsState()
-    val fontScale by connectionViewModel.fontScale.collectAsState()
-    val appFontId by connectionViewModel.appFont.collectAsState()
-    val appearanceAccent by connectionViewModel.appearanceAccent.collectAsState()
-    val appearanceShape by connectionViewModel.appearanceShape.collectAsState()
-    val activeCustomTheme by connectionViewModel.activeCustomTheme.collectAsState()
+    // The same decoded emission that releases splash readiness owns the first
+    // real frame; individual settings flows can hydrate independently later.
+    val appearance by connectionViewModel.appearance.collectAsState()
+    val themePreference = appearance.themePreference
+    val appThemeId = appearance.appThemeId
+    val fontScale = appearance.fontScale
+    val appFontId = appearance.appFontId
+    val appearanceAccent = appearance.accentHex
+    val appearanceShape = appearance.shapeId
+    val activeCustomTheme = appearance.customTheme
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
