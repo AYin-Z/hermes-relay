@@ -980,7 +980,7 @@ Tools register against the Hermes plugin API in `plugin/tools/android_tool.py` (
 |------|-----------|---------|--------|
 | `android_ping` | `GET /ping` | Liveness check — does not require master enable | sideload Device Control |
 | `android_screen` | `GET /screen` | Serialize the accessibility tree → `ScreenContent` | sideload Device Control |
-| `android_screenshot` | `GET /screenshot` | `MediaProjection` PNG → `MEDIA:hermes-relay://<token>` | sideload Device Control |
+| `android_screenshot` | `GET /screenshot`, then authenticated `GET /media/<token>` | `MediaProjection` PNG → bounded native image tool result with the `MEDIA:hermes-relay://<token>` phone-delivery marker; older inline base64 responses remain readable | sideload Device Control |
 | `android_current_app` | `GET /current_app` | Best-effort foregrounded package name; use `/screen` for verification | sideload Device Control |
 | `android_get_apps` (`/apps` legacy) | `GET /get_apps` | Installed launcher apps | sideload Device Control |
 | `android_tap` | `POST /tap` | Tap at `(x, y)` or on resolved `node_id` | sideload Device Control |
