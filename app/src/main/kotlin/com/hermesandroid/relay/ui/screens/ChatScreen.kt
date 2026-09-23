@@ -1220,6 +1220,7 @@ fun ChatScreen(
         chatGatewayAvailability == GatewayAvailability.SignInRequired && !apiReachable
     val isGatewayTransport = remember(
         streamingEndpointPref, chatServerCapabilities, chatGatewayAvailability,
+        activeConnection,
     ) {
         connectionViewModel.resolveStreamingEndpoint(streamingEndpointPref) == "gateway"
     }
@@ -3331,6 +3332,9 @@ fun ChatScreen(
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
+                                .then(if (targetConnectState == ChatConnectState.NeedsConnection) {
+                                    Modifier.verticalScroll(rememberScrollState())
+                                } else Modifier)
                                 .padding(horizontal = 32.dp)
                                 .then(
                                     responsiveLayout.introMaxWidth?.let {
@@ -3345,7 +3349,9 @@ fun ChatScreen(
                                 LocalBackgroundVisualizationEnabled.current &&
                                 (!supervised || supervisedVisibility.showAgentIdentity)
                             ) {
-                                val avatarModifier = responsiveLayout.avatarSize?.let { size ->
+                                val avatarModifier = if (targetConnectState == ChatConnectState.NeedsConnection) {
+                                    Modifier.size(80.dp).clipToBounds()
+                                } else responsiveLayout.avatarSize?.let { size ->
                                     Modifier
                                         .size(size)
                                         .clipToBounds()

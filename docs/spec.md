@@ -117,6 +117,14 @@ The normal UI reports outcomes such as Chat, Manage, Voice, Direct API, and
 Relay extensions instead of treating a missing optional endpoint as a broken
 connection.
 
+Users may explicitly accept cleartext HTTP risk for an otherwise-restricted
+Dashboard origin. Consent belongs to the saved connection and exact HTTP host
+and port. It neither detects nor enforces VPN protection, asserts encryption,
+bypasses authentication, nor grants Relay access. Address changes require fresh
+consent and retire the previous origin's exception and Dashboard credentials.
+Public status proves discovery only; setup verifies protected authentication
+before presenting it as verified, and Chat readiness still requires Gateway Ready.
+
 Dashboard route/auth availability and Gateway socket readiness are separate
 authorities. A successful Dashboard status/auth probe enables Manage, session
 browsing, and standard voice, but Chat is connected through Gateway only after
