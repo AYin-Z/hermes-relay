@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
+- **Provider usage covers the Grok subscription.** The provider-usage surface reports Grok subscription windows for hosts signed in with `xai-oauth`, including the current billing period, per-product usage, and on-demand credit state. Hosts without that sign-in report the provider as not configured, and no credential ever reaches the client.
 - Optional voice controls over other apps in Google Play, with contextual permission setup, a persistent Stop voice notification, and session shutdown on screen lock or permission loss. Phone control remains sideload-only.
 
 ### Fixed
