@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
+- Proactive phone Thread messages render relay-token and host-path media as attachments while preserving multiline text; notification previews omit media markers. (#485)
+- Desktop computer screenshots attach validated image bytes to the host tool result instead of returning base64 as plain text.
+- Relay-owned media uploads are removed on token expiry, eviction, and shutdown; media activity logs omit tokens, file paths, and screenshot bytes.
 - Plugin screenshot and navigation tools resolve Android's authenticated media token, attach the actual bounded image to host vision, and keep legacy inline screenshots readable. (#593)
 - Android Chat can open the model picker before the first turn, loads Gateway models when opened, and distinguishes loading, unavailable, and empty catalogs.
 - Secure Link configuration failures leave ordinary Relay available; route details and pairing previews resolve the advertised service namespaces.
