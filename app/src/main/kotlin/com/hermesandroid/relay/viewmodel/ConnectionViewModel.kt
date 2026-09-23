@@ -1180,7 +1180,12 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
         httpClient = endpointProbeClient,
         clientForCandidate = { candidate, probeRequestUrl ->
             val tokenProvider = { (authManager.authState.value as? AuthState.Paired)?.token }
-            candidate.pluginProxyRoutesOrNull()?.let { proxy ->
+            candidate.pluginProxyRoutesOrNull()?.takeIf { proxy ->
+                proxy.authority.equals(
+                    probeRequestUrl?.let(com.hermesandroid.relay.auth.CertPinStore::hostPortFromUrl),
+                    ignoreCase = true,
+                )
+            }?.let { proxy ->
                 if (candidate.hermesReachRouteOrNull() != null) {
                     buildHermesReachClient(
                         baseBuilder = endpointProbeClient.newBuilder(),
@@ -1584,7 +1589,7 @@ class ConnectionViewModel(application: Application) : AndroidViewModel(applicati
             ?: connectionManager.activeRelayEndpoint.value?.relay?.url
             ?: autoRelayUrlSnapshot()
 
-    private fun pluginProxyClientForUrl(
+    internal fun pluginProxyClientForUrl(
         url: String,
         baseClient: OkHttpClient? = null,
         includeRelaySessionHeader: Boolean = true,

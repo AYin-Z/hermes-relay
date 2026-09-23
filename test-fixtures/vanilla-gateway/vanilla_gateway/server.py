@@ -89,12 +89,19 @@ class GatewayFixture:
         return web.json_response({"ticket": token, "ttl_seconds": 30})
 
     async def _websocket(self, request: web.Request) -> web.StreamResponse:
-        ticket = request.query.get("ticket", "")
+        protocols = [p.strip() for p in request.headers.get("Sec-WebSocket-Protocol", "").split(",")]
+        protocol_tickets = [p.removeprefix("hermes-gateway-ticket.") for p in protocols
+                            if p.startswith("hermes-gateway-ticket.")]
+        if protocol_tickets and (len(protocol_tickets) != 1 or "hermes-gateway-v1" not in protocols):
+            raise web.HTTPUnauthorized(text="ambiguous ticket protocol")
+        ticket = protocol_tickets[0] if protocol_tickets else request.query.get("ticket", "")
         if ticket not in self._tickets:
             self.evidence.add("socket", outcome="ticket_rejected")
             raise web.HTTPUnauthorized(text="invalid or already-used ticket")
         self._tickets.remove(ticket)
-        socket = web.WebSocketResponse(heartbeat=None)
+        socket = web.WebSocketResponse(
+            heartbeat=None, protocols=["hermes-gateway-v1"] if protocol_tickets else [],
+        )
         await socket.prepare(request)
         self._sockets.add(socket)
         self._connection_sequence += 1

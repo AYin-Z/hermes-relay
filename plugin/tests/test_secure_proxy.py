@@ -36,6 +36,8 @@ from plugin.relay.server import (
 class SecureProxyRouteTests(AioHTTPTestCase):
     async def get_application(self):
         self.server_state = RelayServer(RelayConfig())
+        self.enterContext(patch("plugin.relay.secure_proxy._api_available", new=AsyncMock(return_value=False)))
+        self.enterContext(patch("plugin.relay.secure_proxy._dashboard_gate_enabled", new=AsyncMock(return_value=False)))
         return create_secure_proxy_app(self.server_state)
 
     async def asyncTearDown(self) -> None:
@@ -62,23 +64,18 @@ class SecureProxyRouteTests(AioHTTPTestCase):
 
         for path in (
             "/relay/sessions",
+            "/relay/voice/config",
             "/relay/desktop/_ping", "/relay/pairing/register", "/health",
         ):
             response = await self.client.get(path)
             self.assertEqual(response.status, 404, path)
 
-        # /api/* is proxied: 502 when no API upstream, 200 when a local gateway answers.
-        api_status = (await self.client.get("/api/health")).status
-        self.assertIn(api_status, {200, 502}, f"/api/health status={api_status}")
-        # Bare /dashboard must resolve (not a router 404) even without a trailing slash.
-        bare_dashboard = (await self.client.get("/dashboard")).status
-        self.assertNotEqual(bare_dashboard, 404, f"/dashboard status={bare_dashboard}")
-        dashboard_status = (await self.client.get("/dashboard/")).status
-        self.assertIn(
-            dashboard_status,
-            {200, 302, 401, 503},
-            f"/dashboard/ status={dashboard_status}",
-        )
+        # Deterministic failures; never depend on a developer's local services.
+        from aiohttp import ClientConnectionError
+        with patch("plugin.relay.secure_proxy._proxy_http", new=AsyncMock(side_effect=ClientConnectionError)):
+            self.assertEqual((await self.client.get("/api/health")).status, 502)
+        self.assertEqual((await self.client.get("/dashboard")).status, 503)
+        self.assertEqual((await self.client.get("/dashboard/")).status, 503)
 
     async def test_mutating_health_is_rejected(self) -> None:
         response = await self.client.post("/relay/health")

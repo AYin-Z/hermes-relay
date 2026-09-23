@@ -8,8 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Fixed
 
-- Secure Link preserves Gateway WebSocket query parameters (including auth tickets), disables nested permessage-deflate on the proxy-to-dashboard leg, scopes dashboard login HTML/JSON and redirects under `/dashboard` without double-prefixing, serves bare `/api` and `/dashboard` routes, and includes `version` on `/relay/health` so route probes match the plain relay health contract.
-- Android Secure Link keeps pairing pin enforcement on real Secure Link request URLs for HTTP probes, API/Relay clients, Gateway WS, and voice, shows the pinned HTTPS dashboard route instead of plain :9119, and pins only in the custom TrustManager (no OkHttp CertificatePinner double-check that can fail with an empty peer chain on some devices).
+- Secure Link preserves Gateway ticket authentication and Dashboard login paths, bounds rewritten responses, and serves compatible health information without additional loopback probes.
+- Android Secure Link enforces the paired certificate pin for HTTP, Gateway, and voice traffic, retains the correct TLS policy during Gateway route changes, and displays the active HTTPS Dashboard route.
 - Android safely settles Gateway foreground-service starts before stopping local retention, preventing the startup/shutdown race reported in #603. Turning off always-on connectivity preserves active turns.
 - Android Standard Voice speaks live background completions in its active conversation after the original reply finishes. Stop and conversation changes discard pending speech. (#545)
 

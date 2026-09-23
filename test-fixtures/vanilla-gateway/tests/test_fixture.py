@@ -557,6 +557,7 @@ class ScenarioTestCase(unittest.TestCase):
             "rapid_tools_interims",
             "subagent_child_preview",
             "terminal_gap_activate",
+            "secure_link_gateway_auth",
             "terminal_gap_active_list",
             "terminal_gap_session_info",
             "queued_follow_up",

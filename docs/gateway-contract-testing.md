@@ -180,6 +180,18 @@ redacted.
 
 ## Current-upstream conformance
 
+The `secure_link_gateway_auth` scenario exercises query and subprotocol ticket
+admission through the real Secure Link proxy, single-use rejection, a completed
+turn, and live-session activation after reconnect. Run its wire regression with
+`python -m unittest plugin.tests.test_secure_proxy_contract`; it also checks
+compression boundaries, health coalescing, and bounded Dashboard rewrites.
+Pass that scenario's JSON manifest to the conformance checker below to verify
+the upstream ticket/public-protocol and live-activation seams. Android's focused
+`PluginProxyTransportTest`, `GatewayChatClientTest`, and `RelayVoiceClientRoutingTest`
+cover pin rejection, route replacement during an active turn or ticket mint, and
+the voice HTTP/WebSocket client selection. These are protocol tests, not physical
+device or OEM TLS certification.
+
 Standard Voice receives successful unsolicited assistant answers from live Chat
 admission, with a receipt captured before the new assistant placeholder exists.
 The receipt belongs to the active voice generation and conversation binding;

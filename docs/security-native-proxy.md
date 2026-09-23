@@ -58,6 +58,10 @@ service's authentication or authorization.
   Relay still requires its normal first-frame pairing/session authentication,
   enforces expiry and grants, rate-limits failures, and binds the resulting
   connection to that authenticated session.
+- Relay-native `/voice/*` HTTP routes and management/session HTTP routes are
+  not exposed beneath `/relay`. A pinned client alone does not enable them.
+  Standard voice uses the independently authenticated Dashboard namespace;
+  native Relay voice requires a separately supported ingress.
 - Client-controlled hosts, origins, absolute URLs, proxy headers, redirects,
   encoded separators, and path traversal can never select an upstream.
 - The external `Host` header is validated against the configured Secure Link
@@ -67,6 +71,17 @@ service's authentication or authorization.
 - HTTP request and response bodies are bounded, and upstream connect/read/total
   timeouts are finite. Long-lived traffic uses the separately bounded WebSocket
   path rather than an unlimited HTTP proxy request.
+- Dashboard login HTML and JSON landing paths are rewritten under `/dashboard`.
+  Rewrites request identity encoding and enforce the response limit while reading,
+  including chunked responses. An upstream that ignores the identity request and
+  sends compressed HTML/JSON receives a 502; compressed bytes are never returned
+  with their encoding header removed.
+- Gateway query tickets and ticket subprotocols survive the WebSocket proxy.
+  Upstream authenticates before the outer upgrade succeeds. Only the selected
+  public protocol is returned; ticket-bearing protocols are never reflected.
+  The upstream leg disables compression independently of the downstream leg.
+- Public Relay health reads version and counters from the same server instance;
+  it does not make a second loopback Relay health request.
 - Secure Link failing to initialize must not silently advertise a
   candidate. It must not make the ordinary Relay unavailable unless the
   operator explicitly configured strict startup behavior.
@@ -81,6 +96,10 @@ service's authentication or authorization.
   remains enabled; clients never disable certificate validation to learn a pin.
 - The pin and each service credential are scoped to the exact host and port.
   Redirects or retries outside that authority fail before credentials are sent.
+- Android enforces the paired leaf SPKI inside its trust manager even when system
+  trust succeeds. HTTP and WebSocket requests use the same HTTPS authority guard;
+  automatic redirects are disabled. Gateway route changes replace the ticket and
+  socket transport together, discarding a ticket minted for a superseded route.
 - A declared Secure Link route fails closed if its pinned client cannot be
   built; it must not fall back to a generic TLS or TOFU client.
 - UI security labels derive from the validated proxy contract, not from a

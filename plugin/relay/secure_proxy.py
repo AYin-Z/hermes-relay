@@ -25,6 +25,8 @@ from urllib.parse import urlsplit
 import aiohttp
 from aiohttp import web
 
+from . import __version__
+
 if TYPE_CHECKING:
     from .server import RelayServer
 
@@ -419,10 +421,18 @@ async def _proxy_http(
             )
             upstream_body = b""
             if needs_body_rewrite:
-                upstream_body = await response.read()
+                # The rewrite requires identity bytes. Never remove an encoding
+                # header from a body the upstream compressed despite our request.
+                if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                    raise web.HTTPBadGateway(text="unexpected encoded Dashboard response")
+                buffered = bytearray()
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    if len(buffered) + len(chunk) > MAX_PROXY_RESPONSE_BYTES:
+                        raise web.HTTPBadGateway(text="upstream response exceeds secure limit")
+                    buffered.extend(chunk)
+                upstream_body = _rewrite_dashboard_body(content_type, bytes(buffered))
                 if len(upstream_body) > MAX_PROXY_RESPONSE_BYTES:
                     raise web.HTTPBadGateway(text="upstream response exceeds secure limit")
-                upstream_body = _rewrite_dashboard_body(content_type, upstream_body)
             forwarded: list[tuple[str, str]] = []
             for raw_name, raw_value in response.raw_headers:
                 name = raw_name.decode("latin1")
@@ -434,6 +444,9 @@ async def _proxy_http(
                     "content-length",
                     "content-encoding",
                     "transfer-encoding",
+                    "etag",
+                    "content-md5",
+                    "digest",
                 }:
                     continue
                 if dashboard and lowered == "set-cookie":
@@ -480,8 +493,13 @@ async def _proxy_websocket(
             "content-encoding",
         }
     }
+    protocols = [
+        protocol.strip()
+        for value in request.headers.getall("Sec-WebSocket-Protocol", [])
+        for protocol in value.split(",")
+        if protocol.strip()
+    ]
     downstream = web.WebSocketResponse(heartbeat=30, max_msg_size=4 * 1024 * 1024)
-    await downstream.prepare(request)
     try:
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=None, connect=5),
@@ -491,12 +509,24 @@ async def _proxy_websocket(
                 heartbeat=30,
                 max_msg_size=4 * 1024 * 1024,
                 headers=safe_headers,
+                protocols=protocols,
                 # Disable permessage-deflate on the upstream leg. Negotiating
                 # compression independently on phone↔proxy and proxy↔dashboard
                 # produced WS close 1002 (protocol error) right after
                 # gateway.ready, so chat stayed on "checking gateway".
                 compress=0,
             ) as upstream:
+                # Finish authentication/negotiation upstream first. Echo only
+                # its selected public protocol, never a ticket credential.
+                selected = upstream.protocol
+                if selected and selected.startswith("hermes-gateway-ticket."):
+                    raise web.HTTPBadGateway(text="upstream selected a credential protocol")
+                downstream = web.WebSocketResponse(
+                    heartbeat=30,
+                    max_msg_size=4 * 1024 * 1024,
+                    protocols=[selected] if selected else [],
+                )
+                await downstream.prepare(request)
                 async def forward(source, target) -> None:
                     async for message in source:
                         if message.type == aiohttp.WSMsgType.TEXT:
@@ -514,7 +544,10 @@ async def _proxy_websocket(
                 for task in pending:
                     task.cancel()
                 await asyncio.gather(*done, *pending, return_exceptions=True)
+                await downstream.close()
     except (aiohttp.ClientError, asyncio.TimeoutError):
+        if not downstream.prepared:
+            raise web.HTTPBadGateway(text="upstream unavailable")
         if not downstream.closed:
             await downstream.close(code=1011, message=b"upstream unavailable")
     return downstream
@@ -585,37 +618,11 @@ def create_secure_proxy_app(server: "RelayServer") -> web.Application:
         services["relay"]["available"] = True
         services["api"]["available"] = api_available
         services["dashboard"]["available"] = dashboard_available
-        # Android RelayHttpClient.probeHealth requires status=ok + version
-        # (plain /health already has it). Without version, Secure Link probes
-        # spam "Missing version field" even when the door is healthy.
-        try:
-            from . import __version__ as relay_version
-        except Exception:  # pragma: no cover - import shape only
-            relay_version = "unknown"
-        clients = 0
-        sessions = 0
-        try:
-            # Prefer live counters from the inner plain-HTTP relay.
-            port = int(getattr(server.config, "port", 0) or 0)
-            if port > 0:
-                async with aiohttp.ClientSession(
-                    timeout=aiohttp.ClientTimeout(total=1.5),
-                ) as client:
-                    async with client.get(f"http://127.0.0.1:{port}/health") as resp:
-                        if 200 <= resp.status < 300:
-                            body = await resp.json(content_type=None)
-                            if isinstance(body, dict):
-                                if body.get("version"):
-                                    relay_version = str(body["version"])
-                                clients = int(body.get("clients") or 0)
-                                sessions = int(body.get("sessions") or 0)
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError, TypeError):
-            pass
         return web.json_response({
             "status": "ok",
-            "version": str(relay_version),
-            "clients": clients,
-            "sessions": sessions,
+            "version": __version__,
+            "clients": server.client_count,
+            "sessions": server.sessions.active_count(),
             "surface": "hermes_secure_proxy",
             "display_name": SECURE_LINK_NAME,
             "description": SECURE_LINK_DESCRIPTION,
