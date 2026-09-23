@@ -342,7 +342,7 @@ def relay_secure_link_command(args: Namespace) -> None:
         key: value for key, value in {"host": args.host, "port": args.port}.items() if value is not None
     })
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{relay_port}/secure-link/preflight?{query}", timeout=12) as response:
+        with urllib.request.urlopen(f"http://127.0.0.1:{relay_port}/secure-link/preflight?{query}", timeout=15) as response:
             report = json.load(response)
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise SystemExit("Secure Link checks are unavailable. Start/update Relay and retry; no configuration was changed.") from exc

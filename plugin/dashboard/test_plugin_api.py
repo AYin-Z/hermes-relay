@@ -1089,6 +1089,7 @@ class RemoteAccessStatusTests(PluginApiTestCase):
         self.assertEqual(captured[0].url.path, "/secure-link/preflight")
         self.assertEqual(captured[0].url.params["host"], "relay.example")
         self.assertEqual(captured[0].url.params["port"], "9443")
+        self.assertEqual(captured[0].extensions["timeout"]["read"], 15.0)
 
     def test_status_surfaces_tailscale_dict_and_public_pin(self) -> None:
         # Monkey-patch the tailscale helper so the test doesn't shell out.

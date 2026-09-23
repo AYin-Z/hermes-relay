@@ -600,6 +600,7 @@ async def _proxy_get(
     path: str,
     *,
     params: Optional[dict[str, Any]] = None,
+    timeout: float = _TIMEOUT,
 ) -> Any:
     """Forward a GET to the relay, translating errors per this module's contract.
 
@@ -609,7 +610,7 @@ async def _proxy_get(
     """
     url = f"{_RELAY_BASE}{path}"
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.get(url, params=params)
     except (httpx.TimeoutException, httpx.ConnectError, httpx.TransportError) as err:
         raise _relay_unreachable(err) from err
@@ -1148,7 +1149,7 @@ async def get_secure_link_preflight(host: str | None = None, port: str | None = 
     """Use the running Relay's read-only checks, not the Dashboard's environment."""
     return await _proxy_get("/secure-link/preflight", params={
         key: value for key, value in {"host": host, "port": port}.items() if value is not None
-    })
+    }, timeout=15.0)
 
 
 @router.post("/remote-access/tailscale/enable")
