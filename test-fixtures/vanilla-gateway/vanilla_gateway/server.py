@@ -29,6 +29,19 @@ class GatewayFixture:
         self.scenario = scenario
         self.evidence = EvidenceLog(evidence_limit)
         self.app = web.Application()
+        self._setup_mode = "signin"
+        self._setup_cookie = secrets.token_urlsafe(24)
+        if scenario.dashboard_setup:
+            self.app.middlewares.append(self._setup_auth)
+            self.app.add_routes([
+                web.get("/api/status", self._setup_status),
+                web.get("/api/auth/providers", self._setup_providers),
+                web.get("/api/auth/me", self._setup_me),
+                web.post("/auth/password-login", self._setup_login),
+                web.get("/api/profiles", self._setup_profiles),
+                web.get("/api/profiles/active", self._setup_profile_scope),
+                web.post("/__fixture__/auth", self._setup_control),
+            ])
         self.app.add_routes(
             [
                 web.post("/api/auth/ws-ticket", self._ticket),
@@ -63,6 +76,61 @@ class GatewayFixture:
     @property
     def running(self) -> bool:
         return self._running
+
+    @web.middleware
+    async def _setup_auth(self, request: web.Request, handler: Any) -> web.StreamResponse:
+        protected = request.path.startswith("/api/") and request.path not in {
+            "/api/status", "/api/auth/providers", "/api/ws",
+        }
+        if protected and (self._setup_mode == "loopback" or
+                          request.cookies.get("hermes_session") != self._setup_cookie):
+            self.evidence.add("auth", outcome="rejected_cookie" if request.cookies else "no_cookie")
+            body = {"detail": "Unauthorized"}
+            if self._setup_mode != "loopback":
+                body["error"] = "session_expired" if self._setup_mode == "expired" else "unauthenticated"
+            return web.json_response(body, status=401)
+        return await handler(request)
+
+    async def _setup_status(self, _request: web.Request) -> web.Response:
+        return web.json_response({
+            "auth_required": self._setup_mode != "loopback",
+            "auth_providers": ["basic"], "auth_flows": [],
+            "profiles": [self.scenario.profile],
+            "gateway_mode": "multiplex",
+            "gateways": [{"profile": self.scenario.profile, "served_profiles": [self.scenario.profile]}],
+            "version": "synthetic-setup-fixture", "install_id": self.scenario.name,
+        })
+
+    async def _setup_providers(self, _request: web.Request) -> web.Response:
+        return web.json_response({"providers": [{"name": "basic", "supports_password": True}]})
+
+    async def _setup_me(self, _request: web.Request) -> web.Response:
+        return web.json_response({"authenticated": True, "username": "Fixture", "provider": "basic"})
+
+    async def _setup_profiles(self, _request: web.Request) -> web.Response:
+        return web.json_response({"profiles": [{"name": self.scenario.profile, "model": "fixture"}]})
+
+    async def _setup_profile_scope(self, _request: web.Request) -> web.Response:
+        return web.json_response({"active": self.scenario.profile, "current": self.scenario.profile})
+
+    async def _setup_login(self, request: web.Request) -> web.Response:
+        body = await request.json()
+        if body.get("username") != "fixture" or body.get("password") != "fixture":
+            return web.json_response({"detail": "Invalid fixture credentials"}, status=401)
+        response = web.json_response({"ok": True, "next": "/"})
+        response.set_cookie("hermes_session", self._setup_cookie, httponly=True, path="/")
+        return response
+
+    async def _setup_control(self, request: web.Request) -> web.Response:
+        mode = (await request.json()).get("mode")
+        if mode not in {"signin", "expired", "loopback"}:
+            raise web.HTTPBadRequest(text="invalid fixture auth mode")
+        self._setup_mode = mode
+        self._setup_cookie = secrets.token_urlsafe(24)
+        self._tickets.clear()
+        for socket in tuple(self._sockets):
+            await socket.close(code=4401, message=b"fixture auth changed")
+        return web.json_response({"mode": mode})
 
     async def close(self) -> None:
         self._closing = True
@@ -126,7 +194,11 @@ class GatewayFixture:
         if not isinstance(method, str) or request_id is None:
             return
         self.evidence.add("rpc", connection=connection, method=method, outcome="received")
-        if method == "session.create":
+        if self.scenario.dashboard_setup and method == "profiles.list":
+            result = {"profiles": [{"name": self.scenario.profile, "model": "fixture", "is_default": True}]}
+        elif self.scenario.dashboard_setup and method == "pet.info":
+            result = {"enabled": False}
+        elif method == "session.create":
             result = self._session_snapshot(include_stored=True)
             if self.scenario.session_initialization_error:
                 result["info"]["lazy"] = True
@@ -340,10 +412,16 @@ class GatewayFixture:
         if profile not in (None, self.scenario.profile):
             raise web.HTTPNotFound(text="profile not found")
         self.evidence.add("directory", outcome="listed")
+        sessions = [{
+            "id": self.scenario.stored_session_id,
+            "title": "Fixture conversation", "source": "cli",
+            "model": "fixture", "message_count": len(self._history_rows),
+            "created_at": 1.0, "updated_at": 2.0,
+        }] if self.scenario.dashboard_setup and self._history_rows else []
         return web.json_response(
             {
-                "sessions": [],
-                "pagination": {"limit": 50, "offset": 0, "returned": 0},
+                "sessions": sessions,
+                "pagination": {"limit": 50, "offset": 0, "returned": len(sessions)},
             },
         )
 

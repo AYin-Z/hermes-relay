@@ -104,6 +104,7 @@ class UpstreamTransportController(
     private val trustedDashboardUrlProvider: (String) -> String? = { null },
     /** False when the host's advertised auth topology requires cookie compatibility mode. */
     private val nativeDashboardBearerEligibleProvider: (String) -> Boolean = { true },
+    private val dashboardHttpConsentOriginsProvider: (String) -> Set<String> = { emptySet() },
     /** Applies pairing-bound TLS to a standard authenticated client when needed. */
     private val pinnedClientProvider: (String, okhttp3.OkHttpClient) -> okhttp3.OkHttpClient? =
         { _, _ -> null },
@@ -190,18 +191,29 @@ class UpstreamTransportController(
         }
     }
 
+    private fun dashboardClientTransport(
+        connectionId: String?,
+        url: String,
+        base: okhttp3.OkHttpClient,
+    ): okhttp3.OkHttpClient = com.hermesandroid.relay.network.upstream.dashboardClientWithHttpConsent(
+        pinnedClientProvider(url, base) ?: base,
+        url,
+        connectionId?.let(dashboardHttpConsentOriginsProvider).orEmpty(),
+    )
+
     private fun bearerAuthForTrustedDashboard(
         connectionId: String,
         dashboardUrl: String,
     ): DashboardBearerAuth? {
         if (!nativeDashboardBearerEligibleProvider(connectionId)) return null
-        if (!isNativeDashboardTransportEligible(dashboardUrl)) return null
+        if (!isNativeDashboardTransportEligible(dashboardUrl, dashboardHttpConsentOriginsProvider(connectionId))) return null
         val trustedDashboardUrl = trustedDashboardUrlProvider(connectionId)
             ?: (if (activeConnectionIdProvider() == connectionId) dashboardUrlProvider() else null)
             ?: return null
         return trustedDashboardBearerAuthOrNull(
             candidate = dashboardUrl,
             trusted = trustedDashboardUrl,
+            httpConsentOrigins = dashboardHttpConsentOriginsProvider(connectionId),
             tokenStoreProvider = { dashboardTokenStoreFor(connectionId) },
         )
     }
@@ -223,7 +235,7 @@ class UpstreamTransportController(
                 dashboardCookieStoreFor(connectionId),
                 bearerAuthForTrustedDashboard(connectionId, normalizedUrl),
             )
-            pinnedClientProvider(normalizedUrl, base) ?: base
+            dashboardClientTransport(connectionId, normalizedUrl, base)
         }
         return DashboardApiClient(
             baseUrl = normalizedUrl,
@@ -257,16 +269,27 @@ class UpstreamTransportController(
      * [dashboardUrl], falling back to an in-memory cookie store when there is
      * no active connection (the standard-voice probe path).
      */
-    fun dashboardClientForActive(dashboardUrl: String): DashboardApiClient {
+    fun dashboardClientForActive(dashboardUrl: String, setupProbe: Boolean = false): DashboardApiClient {
+        val ownerId = activeConnectionIdProvider()
+        val trustedBase = ownerId?.let(trustedDashboardUrlProvider) ?: dashboardUrlProvider()
+        val cookies = if (!setupProbe || (trustedBase != null &&
+            com.hermesandroid.relay.network.upstream.sameDashboardBase(dashboardUrl, trustedBase))) {
+            activeDashboardCookieStore() ?: InMemoryDashboardCookieStore()
+        } else InMemoryDashboardCookieStore()
         val base = dashboardHttpClientFactory(
-            activeDashboardCookieStore() ?: InMemoryDashboardCookieStore(),
+            cookies,
             activeConnectionIdProvider()?.let {
                 bearerAuthForTrustedDashboard(it, dashboardUrl)
             },
         )
+        val boundedBase = if (setupProbe) base.newBuilder()
+            .callTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
+            .build() else base
         return DashboardApiClient(
             baseUrl = dashboardUrl,
-            okHttpClient = pinnedClientProvider(dashboardUrl, base) ?: base,
+            okHttpClient = dashboardClientTransport(ownerId, dashboardUrl, boundedBase),
         )
     }
 
@@ -281,7 +304,7 @@ class UpstreamTransportController(
         )
         return DashboardApiClient(
             baseUrl = dashboardUrl,
-            okHttpClient = pinnedClientProvider(dashboardUrl, base) ?: base,
+            okHttpClient = dashboardClientTransport(activeConnectionIdProvider(), dashboardUrl, base),
         )
     }
 
@@ -293,7 +316,7 @@ class UpstreamTransportController(
     fun nativeDashboardAuthClientForActive(dashboardUrl: String): NativeDashboardAuthClient? {
         val connectionId = activeConnectionIdProvider() ?: return null
         val trustedDashboardUrl = dashboardUrlProvider() ?: return null
-        if (!isNativeDashboardTransportEligible(dashboardUrl)) {
+        if (!isNativeDashboardTransportEligible(dashboardUrl, dashboardHttpConsentOriginsProvider(connectionId))) {
             return null
         }
         if (!com.hermesandroid.relay.network.upstream.sameDashboardBase(
@@ -312,7 +335,7 @@ class UpstreamTransportController(
         return NativeDashboardAuthClient(
             baseUrl = dashboardUrl,
             tokenStore = dashboardTokenStoreFor(connectionId),
-            client = pinnedClientProvider(dashboardUrl, base) ?: base,
+            client = dashboardClientTransport(activeConnectionIdProvider(), dashboardUrl, base),
         )
     }
 
@@ -331,7 +354,7 @@ class UpstreamTransportController(
                 bearerAuthForTrustedDashboard(activeId, dashboardUrl)
             },
         )
-        return (pinnedClientProvider(dashboardUrl, base) ?: base)
+        return (dashboardClientTransport(activeConnectionIdProvider(), dashboardUrl, base))
             .also { dashboardHttpClientCache = Triple(connectionId, dashboardUrl, it) }
     }
 

@@ -1966,7 +1966,7 @@ fun RelayApp() {
         //     (WhatsApp-style; see ChatScreen). That's the "can I talk to the
         //     agent?" signal.
         //   • Relay socket (bridge/terminal/relay-voice) → the bottom
-        //     RelayStatusStrip's "Reconnecting…" cue only. It never blocks chat,
+        //     RelayStatusStrip is reserved for the active chat owner's status.
         //     so it stays ambient. (`connectionReconnecting` below.)
         // A routine in-progress reconnect surfaces only in the bottom strip.
         // Computed off the raw status (not the dismiss-gated `toast`) because the
