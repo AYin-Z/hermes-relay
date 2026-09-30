@@ -48,6 +48,7 @@ import {
   type ComputerControlAuthority
 } from './computerControlSecurity.js'
 import { closeAllCuaControlSessions, closeCuaControlSession } from './cuaDriver.js'
+import { appendChunk, abortReceive, finalizeReceive } from './transferSession.js'
 
 /** The payload shape server → client for a single tool invocation. */
 export interface ToolCallPayload {
@@ -115,6 +116,9 @@ export interface ToolContext {
   controlSession?: ComputerControlAuthority
   /** Hermes-owned snapshot/token binding state for this router lifecycle. */
   controlSecurity?: ComputerControlSecurityState
+  /** Emit a raw envelope on the desktop channel. Used by streaming handlers
+   * (file transfer) that produce more than one response envelope. */
+  emit?: (type: string, payload: Record<string, unknown>) => void
 }
 
 /** A tool handler. Throws → router responds with `{ok:false, error}`. */
@@ -349,6 +353,22 @@ export class DesktopToolRouter {
         void closeCuaControlSession(ended.id, ended.reason ?? 'relay control session ended')
         return
       }
+      if (type === 'desktop.transfer_chunk') {
+        const transferId = typeof payload.transfer_id === 'string' ? payload.transfer_id : ''
+        if (!transferId) return
+        const progress = appendChunk(transferId, payload.data)
+        if (progress && progress.received >= progress.total) {
+          void finalizeReceive(transferId)
+        }
+        return
+      }
+      if (type === 'desktop.transfer_abort' || type === 'desktop.transfer_error') {
+        const transferId = typeof payload.transfer_id === 'string' ? payload.transfer_id : ''
+        if (transferId) {
+          void abortReceive(transferId)
+        }
+        return
+      }
       // Unknown desktop.* types — ignore; server may extend later.
     })
 
@@ -493,7 +513,10 @@ export class DesktopToolRouter {
       abortSignal: controller.signal,
       interactive: this.interactive,
       controlSession,
-      controlSecurity: this.controlSecurity
+      controlSecurity: this.controlSecurity,
+      emit: (type, payload) => {
+        this.relay?.sendChannel('desktop', type, payload)
+      }
     }
 
     try {
