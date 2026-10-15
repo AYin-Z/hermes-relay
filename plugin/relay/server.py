@@ -1495,13 +1495,13 @@ async def _desktop_transfer_args(request: web.Request) -> tuple[dict[str, Any], 
     _require_loopback(request)
     try:
         args = await request.json()
-        if not isinstance(args, dict):
-            args = {}
-    except Exception:  # noqa: BLE001
-        args = {}
+    except Exception as exc:
+        raise web.HTTPBadRequest(text="Expected a JSON object") from exc
+    if not isinstance(args, dict):
+        raise web.HTTPBadRequest(text="Expected a JSON object")
     device = args.pop("device", None) or args.pop("device_id", None)
-    if not isinstance(device, str):
-        device = None
+    if device is not None and (not isinstance(device, str) or not device.strip()):
+        raise web.HTTPBadRequest(text="Invalid device selector")
     return args, device
 
 
@@ -1516,7 +1516,9 @@ async def handle_desktop_transfer_push(request: web.Request) -> web.Response:
     args, device = await _desktop_transfer_args(request)
     local_path = args.get("local_path")
     remote_path = args.get("remote_path")
-    overwrite = bool(args.get("overwrite", False))
+    overwrite = args.get("overwrite", False)
+    if type(overwrite) is not bool:
+        return web.json_response({"ok": False, "error": "overwrite must be boolean"}, status=400)
     if not isinstance(local_path, str) or not local_path:
         return web.json_response({"ok": False, "error": "local_path is required"}, status=400)
     if not isinstance(remote_path, str) or not remote_path:

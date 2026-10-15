@@ -339,11 +339,13 @@ def _availability() -> _DesktopAvailability:
 
 def _check_tool(tool_name: str) -> bool:
     """Match DesktopHandler.has_client_for across every connected client."""
+    tool_name = {"desktop_push_file": "desktop_transfer_receive",
+                 "desktop_pull_file": "desktop_transfer_send"}.get(tool_name, tool_name)
     snapshot = _availability()
     if not snapshot.reachable or not snapshot.valid or not snapshot.connected:
         return False
     return any(tool_name in tools for tools in snapshot.client_toolsets) or (
-        not tool_name.startswith("desktop_computer_")
+        not tool_name.startswith(("desktop_computer_", "desktop_transfer_"))
         and any(not tools for tools in snapshot.client_toolsets)
     )
 
@@ -717,8 +719,7 @@ def desktop_checksum(path: str, algorithm: str = "sha256") -> str:
 # ── Large-file transfer (server-initiated push/pull) ─────────────────────────
 
 
-# The relay streams in 256 KB chunks with a 600 s idle timeout; give the
-# loopback HTTP call a matching budget plus margin.
+# The relay bounds each operation to 600 seconds; allow HTTP cleanup margin.
 _TRANSFER_HTTP_TIMEOUT = 660.0
 
 
@@ -1677,6 +1678,8 @@ _DEVICE_SELECTOR_SCHEMA = {
     ),
 }
 _TOOL_CAPABILITIES = {
+    "desktop_push_file": "files.write",
+    "desktop_pull_file": "files.read",
     "desktop_read_file": "files.read",
     "desktop_search_files": "files.read",
     "desktop_checksum": "files.read",

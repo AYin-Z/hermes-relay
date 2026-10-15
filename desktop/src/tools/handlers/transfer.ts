@@ -23,7 +23,6 @@ import { promises as fsp } from 'node:fs'
 import * as path from 'node:path'
 
 import type { ToolHandler } from '../router.js'
-import { beginReceive, streamSend, TRANSFER_CHUNK_SIZE } from '../transferSession.js'
 
 function argString(v: unknown, name: string): string {
   if (typeof v !== 'string' || v.length === 0) {
@@ -383,50 +382,21 @@ function jsonQuote(s: string): string {
 }
 
 // ── Relay file-transfer channel (server-initiated push/pull) ────────────────
-
-/** desktop_transfer_receive
- *   args: { transfer_id: string, path: string, size: number, sha256: string,
- *           overwrite?: boolean }
- *   returns: { status:'ready', transfer_id }
- *
- * Initializes a receive session for a server-initiated push. The relay then
- * streams `desktop.transfer_chunk` envelopes; the router routes those into
- * transferSession, which assembles, verifies sha256, and moves the file into
- * place. */
 export const transferReceiveHandler: ToolHandler = async (args, ctx) => {
+  if (!ctx.emit || !ctx.transfers) throw new Error('transfer not supported in this context')
+  if (typeof args.size !== 'number') throw new Error('size is required')
+  if (args.overwrite !== undefined && typeof args.overwrite !== 'boolean') throw new Error('overwrite must be boolean')
   const transfer_id = argString(args.transfer_id, 'transfer_id')
-  const dest = path.resolve(argString(args.path, 'path'))
-  const size = typeof args.size === 'number' && args.size >= 0 ? Math.floor(args.size) : 0
-  const sha256 = argString(args.sha256, 'sha256')
-  const overwrite = argBool(args.overwrite, false)
-  const emit = ctx.emit
-  if (!emit) {
-    throw new Error('transfer not supported in this context')
-  }
-  await beginReceive({ transfer_id, path: dest, size, sha256, overwrite, emit })
-  return { status: 'ready', transfer_id }
+  await ctx.transfers.beginReceive({ transfer_id,
+    path: path.resolve(ctx.cwd, argString(args.path, 'path')), size: args.size,
+    sha256: argString(args.sha256, 'sha256'), overwrite: args.overwrite === true, emit: ctx.emit })
+  return { status: 'ready', transfer_id, protocol: 1 }
 }
 
-/** desktop_transfer_send
- *   args: { transfer_id: string, path: string }
- *   returns: { status:'ready', transfer_id, size, total_chunks }
- *
- * Initializes a send session for a server-initiated pull. The handler reports
- * the file size and total chunk count, then streams the file asynchronously
- * (fire-and-forget) via transferSession.streamSend. */
 export const transferSendHandler: ToolHandler = async (args, ctx) => {
+  if (!ctx.emit || !ctx.transfers) throw new Error('transfer not supported in this context')
   const transfer_id = argString(args.transfer_id, 'transfer_id')
-  const filePath = path.resolve(argString(args.path, 'path'))
-  const emit = ctx.emit
-  if (!emit) {
-    throw new Error('transfer not supported in this context')
-  }
-  const stat = await fsp.stat(filePath)
-  if (!stat.isFile()) {
-    throw new Error(`not a regular file: ${filePath}`)
-  }
-  const size = stat.size
-  const totalChunks = Math.max(1, Math.ceil(size / TRANSFER_CHUNK_SIZE))
-  void streamSend({ transfer_id, path: filePath, size, emit })
-  return { status: 'ready', transfer_id, size, total_chunks: totalChunks }
+  const metadata = await ctx.transfers.prepareSend(transfer_id,
+    path.resolve(ctx.cwd, argString(args.path, 'path')), ctx.emit)
+  return { status: 'ready', transfer_id, protocol: 1, ...metadata }
 }
