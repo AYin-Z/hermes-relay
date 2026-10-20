@@ -444,6 +444,9 @@ export class RelayTransport extends EventEmitter implements Transport {
       const msg = ev?.message ?? 'WebSocket error'
       this.pushLog(`[ws] error: ${msg}`)
       this.publish({ type: 'gateway.stderr', payload: { line: `[ws] ${msg}` } })
+      // Some runtimes emit error without close after a rejected upgrade.
+      // Retire this socket explicitly so startup and established sessions recover.
+      this.teardownSocket(-1, msg)
     })
   }
 

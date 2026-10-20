@@ -9,6 +9,7 @@ whole-repository security certification or Android/Gateway lifecycle validation.
 | Trigger | Previous behavior | Corrected behavior |
 | --- | --- | --- |
 | Stored-token startup hits a TLS timeout or failed WebSocket upgrade | Authentication settled as failed and the daemon exited | Retry with bounded exponential delays; settle initial authentication on the first success |
+| Runtime emits a WebSocket error without a close event | Startup waited for the auth deadline; an authenticated connection could remain stuck | Explicitly retire the errored socket and enter retry policy |
 | Retry limit is one | The scheduled retry was rejected before it ran | Execute exactly the configured number of additional attempts |
 | Old socket close/auth events arrive after replacement | Old callbacks could mutate or close the current socket | Ignore events from replaced sockets and completions from invalidated attempts |
 | Pairing succeeds and the connection later drops | Reused the consumed pairing code | Authenticate with the minted session token |

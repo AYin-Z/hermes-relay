@@ -43,6 +43,10 @@ class FakeWebSocket {
     })
   }
 
+  fail(message: string): void {
+    this.emit('error', { message })
+  }
+
   drop(code: number, reason: string): void {
     this.readyState = 3
     this.emit('close', { code, reason })
@@ -308,4 +312,20 @@ test('a real certificate pin mismatch remains terminal and never opens the WebSo
   assert.match(!outcome.ok ? outcome.reason : '', /cert pin mismatch/)
   assert.equal(retries, 0)
   assert.equal(sockets.length, 0)
+})
+
+
+test('WebSocket error without close retires the socket and starts exactly one retry', async t => {
+  const { relay, sockets } = fixture(t)
+  const reasons: string[] = []
+  relay.on('reconnecting', info => reasons.push(info.reason))
+  relay.start(); sockets[0]!.open(); sockets[0]!.authOk()
+  sockets[0]!.fail('upgrade or transport failed')
+  assert.equal(relay.getState(), 'reconnecting')
+  assert.equal(sockets[0]!.readyState, 3)
+  sockets[0]!.drop(1006, 'late close after error')
+  assert.deepEqual(reasons, ['upgrade or transport failed'])
+  await waitFor(() => sockets.length === 2)
+  sockets[1]!.open(); sockets[1]!.authOk()
+  assert.equal(relay.getState(), 'connected')
 })
